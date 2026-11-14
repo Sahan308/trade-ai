@@ -19,6 +19,7 @@ window.TRADE_AI_CONFIG = {
 
   // Backend endpoints. null = not connected; the UI shows designed disconnected states.
   api: {
+    backendBaseUrl: null,          // TRADE-AI API, e.g. "http://localhost:8000" — enables the API status indicator
     marketDataBaseUrl: null,       // e.g. "https://api.your-backend.example/v1/market"
     signalsBaseUrl: null,          // e.g. "https://api.your-backend.example/v1/signals"
     requestTimeoutMs: 8000,

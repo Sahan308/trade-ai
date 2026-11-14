@@ -1,0 +1,25 @@
+# Local stack: Postgres + API. Frontend is static — serve it separately (see README).
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tradeai
+      POSTGRES_PASSWORD: tradeai   # local development only
+      POSTGRES_DB: tradeai
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tradeai"]
+      interval: 5s
+      retries: 10
+  api:
+    build: ./backend
+    environment:
+      TRADEAI_ENV: development
+      TRADEAI_DATABASE_URL: postgresql+psycopg://tradeai:tradeai@db:5432/tradeai
+      TRADEAI_CORS_ORIGINS: http://localhost:8080
+    ports: ["8000:8000"]
+    depends_on:
+      db: { condition: service_healthy }
+volumes:
+  pgdata:

@@ -287,6 +287,21 @@
     if (t && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); t.click(); }
   });
 
+  // ---------- Backend API status ----------
+  async function renderApi() {
+    const el = $("#apiStatus"), r = await TA.Health.check();
+    const map = {
+      not_configured: ["var(--tx-3)", "plug", "API: not configured"],
+      ok: ["var(--up)", "check", "API: healthy"],
+      degraded: ["var(--down)", "alert", "API: degraded (database)"],
+      unreachable: ["var(--down)", "wifiOff", "API: unreachable"]
+    };
+    const [col, ic, label] = map[r.status];
+    el.innerHTML = `<span style="color:${col};display:inline-flex">${TA.icon(ic, "icon-sm")}</span><span>${label}</span>`;
+    el.title = r.checkedAt ? `Checked ${TA.fmtTime(r.checkedAt)}` : "";
+  }
+
   renderConn();
+  renderApi();
   route();
 })();
