@@ -616,7 +616,7 @@
           <section class="card panel span-12"><div class="result-grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
             <div class="result"><small>Last price</small><div>${TA.fmtPrice(px)}</div></div>
             <div class="result"><small>${term("Structure", "Direction of the latest break of structure (BOS) or change of character (CHOCH).")}</small><div>${bias(S.trend)}</div></div>
-            <div class="result"><small>${term("Premium / discount", "Where price sits in the recent swing range. Above the midpoint = premium, below = discount.")}</small><div>${pd ? `${pd.zone[0].toUpperCase() + pd.zone.slice(1)} · ${(pd.position * 100).toFixed(0)}%` : "—"}</div></div>
+            <div class="result"><small>${term("Premium / discount", "Where price sits in the recent swing range. Above the midpoint = premium, below = discount.")}</small><div>${!pd ? "—" : pd.position < 0 ? "Below the range" : pd.position > 1 ? "Above the range" : `${pd.zone[0].toUpperCase() + pd.zone.slice(1)} · ${(pd.position * 100).toFixed(0)}%`}</div></div>
             <div class="result"><small>Candles analysed</small><div>${n} × ${tf}</div></div></div>
             <p class="muted" style="margin:10px 0 0;font-size:.8rem">Source: ${TA.esc(r.sourceName)} · last closed candle ${when(n - 1)}</p></section>
           <div class="span-6">${sec("Structure breaks", "BOS = trend continues past a swing. CHOCH = first break against the prior trend.", tbl(["Type", "Direction", "Level", "When"], ev.map((e) => `<tr><td><b>${e.type}</b></td><td>${bias(e.direction)}</td><td class="r num">${TA.fmtPrice(e.level)}</td><td class="muted">${when(e.index)}</td></tr>`), "No structure breaks in this window."))}</div>
