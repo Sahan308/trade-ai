@@ -14,7 +14,10 @@ window.TRADE_AI_CONFIG = {
     trialSignals: 3,
     trialDurationDays: null,       // e.g. 7 — null renders "to be confirmed"
     renewalTerms: null,            // e.g. "Renews monthly until cancelled"
-    checkoutEnabled: false         // no approved billing integration exists yet
+    checkoutEnabled: false,        // set true once checkoutUrl is filled in
+    // Lemon Squeezy hosted checkout link for the $20/month variant, e.g.
+    // "https://YOURSTORE.lemonsqueezy.com/buy/xxxxxxxx-xxxx-…". Card details are entered only on Lemon Squeezy.
+    checkoutUrl: null
   },
 
   // Backend endpoints. null = not connected; the UI shows designed disconnected states.

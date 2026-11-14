@@ -32,7 +32,13 @@ def usage(session: Session, user: User) -> dict:
 
 
 def me(session: Session, user: User) -> dict:
-    return {"id": user.id, "email": user.email, "created_at": user.created_at.isoformat(), "usage": usage(session, user)}
+    sub = None
+    if user.subscription_id:
+        iso = lambda d: d.isoformat() if d else None  # noqa: E731
+        sub = {"status": user.subscription_status, "renews_at": iso(user.subscription_renews_at),
+               "ends_at": iso(user.subscription_ends_at), "portal_url": user.customer_portal_url}
+    return {"id": user.id, "email": user.email, "created_at": user.created_at.isoformat(), "usage": usage(session, user),
+            "subscription": sub}
 
 
 @router.post("/api/auth/register", status_code=201, summary="Create an account (starts the free trial)")
@@ -88,3 +94,35 @@ def unlock(signal_id: str, user: User = Depends(require_user), session: Session 
         except IntegrityError:  # concurrent double-click
             session.rollback()
     return {"signal": view(row, None), "usage": usage(session, user)}
+
+
+class PasswordChange(BaseModel):
+    current_password: str = Field(max_length=128)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+@router.post("/api/auth/password", summary="Change password (signed in)")
+def change_password(body: PasswordChange, user: User = Depends(require_user), session: Session = Depends(get_session)):
+    if not verify_password(body.current_password, user.password_hash):
+        raise HTTPException(401, "Current password is incorrect")
+    user.password_hash = hash_password(body.new_password)
+    session.add(AuditLog(actor=user.id, action="account.password_changed", target=user.id))
+    session.commit()
+    return {"ok": True}
+
+
+class Confirm(BaseModel):
+    password: str = Field(max_length=128)
+
+
+@router.post("/api/auth/delete", summary="Delete the account and its unlocks")
+def delete_account(body: Confirm, user: User = Depends(require_user), session: Session = Depends(get_session)):
+    if not verify_password(body.password, user.password_hash):
+        raise HTTPException(401, "Password is incorrect")
+    if user.plan != "trial" and user.subscription_status in ("active", "on_trial", "past_due"):
+        raise HTTPException(409, "Cancel your subscription first (Manage subscription), then delete the account.")
+    session.query(SignalUnlock).filter(SignalUnlock.user_id == user.id).delete()
+    session.add(AuditLog(actor=user.id, action="account.deleted", target=user.id))
+    session.delete(user)
+    session.commit()
+    return {"ok": True}

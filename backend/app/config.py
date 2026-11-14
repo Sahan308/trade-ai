@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     auth_secret: str = "dev-only-insecure-secret-change-me"
     token_ttl_hours: int = 24 * 14
     trial_signals: int = 3
+    # Billing (Lemon Squeezy). Empty secret = webhook disabled.
+    lemonsqueezy_webhook_secret: str = ""
 
     @field_validator("database_url", mode="before")
     @classmethod

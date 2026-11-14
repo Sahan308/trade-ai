@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import __version__
 from .api.accounts import router as accounts_router
 from .api.alerts import router as alerts_router
+from .api.billing import router as billing_router
 from .api.analysis import router as analysis_router
 from .api.health import router as health_router
 from .api.markets import router as markets_router
@@ -72,7 +73,7 @@ def create_app(provider=None, hub: StreamHub | None = None, limiter=None) -> Fas
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
-        allow_methods=["GET", "POST"],  # POST only for accounts / unlocks
+        allow_methods=["GET", "POST", "DELETE"],  # POST only for accounts / unlocks
         allow_headers=["Content-Type", "Authorization"],
         expose_headers=["X-Request-ID", "Retry-After"],
     )
@@ -82,6 +83,7 @@ def create_app(provider=None, hub: StreamHub | None = None, limiter=None) -> Fas
     app.include_router(analysis_router)
     app.include_router(alerts_router)
     app.include_router(accounts_router)
+    app.include_router(billing_router)
     app.include_router(signals_router)
     app.include_router(risk_router)
     app.include_router(performance_router)

@@ -45,6 +45,20 @@
         return (this.user = await res.json());
       } catch { return this.user; }
     },
+    async post(path, body) {
+      try {
+        const res = await authed(`${backend()}${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        return res.ok ? { ok: true } : { ok: false, error: await errText(res) };
+      } catch (e) { return { ok: false, error: e.message }; }
+    },
+    checkoutLink() {
+      const P = window.TRADE_AI_CONFIG.pricing;
+      if (!P.checkoutEnabled || !P.checkoutUrl || !this.user) return null;
+      const u = new URL(P.checkoutUrl);
+      u.searchParams.set("checkout[custom][user_id]", this.user.id);
+      u.searchParams.set("checkout[email]", this.user.email);
+      return u.toString();
+    },
     signOut() { setToken(null); this.user = null; document.dispatchEvent(new CustomEvent("ta:auth")); }
   };
   const fromApi = (x) => ({

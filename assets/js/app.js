@@ -596,12 +596,34 @@
             <div class="level"><dt>Trial signals used</dt><dd>${u.limit == null ? "Unlimited" : `${u.used} of ${u.limit}`}</dd></div>
             <div class="level"><dt>Member since</dt><dd style="font-family:var(--font-sans)">${TA.fmtTime(user.created_at)}</dd></div></dl>
           <button class="btn" id="signout">${TA.icon("logout", "icon-sm")}Sign out</button></section>
+          <section class="card panel span-6"><h2 style="font-size:1rem">${TA.icon("shield")}Change password</h2>
+            <form class="auth-form" id="pwForm" novalidate>
+              <div class="field"><label for="pw0">Current password</label><input id="pw0" type="password" autocomplete="current-password" /></div>
+              <div class="field"><label for="pw1">New password</label><input id="pw1" type="password" minlength="8" autocomplete="new-password" /><span class="hint">At least 8 characters.</span></div>
+              <span class="err" id="pwErr" role="alert"></span><button class="btn btn-sm" type="submit">Update password</button></form></section>
+          <section class="card panel span-6"><h2 style="font-size:1rem">${TA.icon("x")}Delete account</h2>
+            <p class="muted" style="font-size:.86rem;margin:0 0 10px">Removes your account and unlock history. This can't be undone.</p>
+            <form class="auth-form" id="delForm" novalidate>
+              <div class="field"><label for="pwd">Confirm with your password</label><input id="pwd" type="password" autocomplete="current-password" /></div>
+              <span class="err" id="delErr" role="alert"></span><button class="btn btn-sm" type="submit">Delete my account</button></form></section>
           <section class="card panel span-6"><h2 style="font-size:1rem">${TA.icon("info")}How the trial works</h2>
           <ul style="margin:0;padding-left:18px;font-size:.88rem;color:var(--tx-2);display:grid;gap:4px">
             <li>While a signal is live, its entry, stop and targets are hidden. Unlocking one uses one of your ${C.pricing.trialSignals} free trial signals.</li>
             <li>Opening a signal you already unlocked again is free. Finished signals are shown in full to everyone.</li>
             <li>Signals are experimental analysis, not advice. TRADE-AI never places trades.</li></ul></section></div>`;
         $("#signout", el).addEventListener("click", () => { TA.Auth.signOut(); TA.toast("Signed out.", "info"); route(); });
+        $("#pwForm", el).addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const r = await TA.Auth.post("/api/auth/password", { current_password: $("#pw0", el).value, new_password: $("#pw1", el).value });
+          if (!r.ok) { $("#pwErr", el).textContent = r.error; return; }
+          e.target.reset(); $("#pwErr", el).textContent = ""; TA.toast("Password updated.", "success");
+        });
+        $("#delForm", el).addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const r = await TA.Auth.post("/api/auth/delete", { password: $("#pwd", el).value });
+          if (!r.ok) { $("#delErr", el).textContent = r.error; return; }
+          TA.Auth.signOut(); TA.toast("Your account was deleted.", "info"); location.hash = "#/dashboard";
+        });
         return;
       }
       let mode = "login";
@@ -630,17 +652,27 @@
       draw();
     },
 
-    billing(el) {
+    async billing(el) {
       const P = C.pricing;
-      el.innerHTML = `<div class="grid-dash"><section class="card panel span-6"><div class="panel-head"><h2>${TA.icon("card")}Plan</h2><span class="badge">Trial</span></div>
-        <p style="font-size:1.6rem;font-family:var(--font-display);color:var(--tx-1);margin:0">$${P.monthlyPrice} <span class="muted" style="font-size:.9rem">USD / month after trial</span></p>
+      const user = TA.Auth.available() ? await TA.Auth.me() : null;
+      if (!el.isConnected) return;
+      const sub = user && user.subscription, paid = user && user.usage.plan !== "trial";
+      const link = user && TA.Auth.checkoutLink();
+      const action = !user ? `<a class="btn btn-primary" href="#/account">Sign in to upgrade</a>`
+        : paid ? (sub && sub.portal_url ? `<a class="btn" href="${TA.esc(sub.portal_url)}" target="_blank" rel="noopener">Manage subscription</a>` : "")
+        : link ? `<a class="btn btn-primary" href="${TA.esc(link)}" target="_blank" rel="noopener">Upgrade · $${P.monthlyPrice}/month</a>`
+        : `<button class="btn btn-primary" aria-disabled="true" id="upg">Upgrade</button>`;
+      const subLine = sub ? `<div class="level" style="grid-column:1/-1"><dt>Subscription</dt><dd style="font-family:var(--font-sans)">${TA.esc(sub.status)}${sub.ends_at ? ` · ends ${TA.fmtTime(sub.ends_at)}` : sub.renews_at ? ` · renews ${TA.fmtTime(sub.renews_at)}` : ""}</dd></div>` : "";
+      el.innerHTML = `<div class="grid-dash"><section class="card panel span-6"><div class="panel-head"><h2>${TA.icon("card")}Plan</h2><span class="badge">${paid ? "Pro" : "Trial"}</span></div>
+        <p style="font-size:1.6rem;font-family:var(--font-display);color:var(--tx-1);margin:0">$${P.monthlyPrice} <span class="muted" style="font-size:.9rem">USD / month${paid ? "" : " after trial"}</span></p>
         <dl class="detail-grid" style="grid-template-columns:1fr 1fr;margin:16px 0">
-          <div class="level"><dt>Trial signals</dt><dd>${P.trialSignals}</dd></div>
-          <div class="level"><dt>Trial length</dt><dd>${P.trialDurationDays ? P.trialDurationDays + " days" : "To be confirmed"}</dd></div>
-          <div class="level" style="grid-column:1/-1"><dt>Renewal</dt><dd style="font-family:var(--font-sans)">${P.renewalTerms || "To be confirmed"}</dd></div></dl>
-        <button class="btn btn-primary" aria-disabled="true" id="upg">Upgrade</button></section>
-        <section class="card panel span-6">${state("off", "Billing isn't connected", "No payment provider is set up, so no card details are collected. Checkout will be added once a billing integration is approved.")}</section></div>`;
-      $("#upg", el).addEventListener("click", () => TA.toast("Checkout isn't available yet.", "info"));
+          <div class="level"><dt>Trial signals</dt><dd>${user && !paid ? `${user.usage.used} of ${user.usage.limit} used` : P.trialSignals}</dd></div>
+          <div class="level"><dt>Pro</dt><dd style="font-family:var(--font-sans)">Unlock every signal</dd></div>
+          ${subLine}</dl>${action}</section>
+        <section class="card panel span-6">${link || paid ? `<h2 style="font-size:1rem">${TA.icon("shield")}Payments</h2><p class="muted" style="font-size:.88rem;margin:0">Checkout and card details are handled by Lemon Squeezy, our payment provider. TRADE-AI never sees or stores card numbers. Your plan updates here a few seconds after payment. Cancel anytime from "Manage subscription".</p>`
+          : state("off", "Checkout isn't open yet", "Payments will be handled by Lemon Squeezy. Until checkout is switched on, the free trial is available.")}</section></div>`;
+      const u = $("#upg", el); if (u) u.addEventListener("click", () => TA.toast("Checkout isn't available yet.", "info"));
+      if (user && !paid && link) every(15000, async () => { const m = await TA.Auth.me(); if (m && m.usage.plan !== "trial") { TA.toast("Payment received. Pro is active.", "success"); route(); } });
     }
   };
 
