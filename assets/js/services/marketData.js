@@ -34,8 +34,9 @@
 
   function mode(demo) {
     if (demo) return "demo";
-    if (cfg().api.backendBaseUrl) return "backend";
+    if (cfg().api.backendBaseUrl && cfg().api.marketDataSource === "backend") return "backend";
     if (provider()) return "provider";
+    if (cfg().api.backendBaseUrl) return "backend";
     return "none";
   }
   const fail = (e) => ({ status: "error", data: null, error: e.message || String(e), retryAfter: e.retryAfter });

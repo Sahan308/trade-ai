@@ -28,6 +28,7 @@ window.TRADE_AI_CONFIG = {
     marketDataBaseUrl: null,       // e.g. "https://api.your-backend.example/v1/market"
     signalsBaseUrl: null,          // e.g. "https://api.your-backend.example/v1/signals"
     requestTimeoutMs: 8000,
+    backendTimeoutMs: 60000,       // free hosting can take ~30–50s to wake up
     staleAfterSeconds: 30
   },
 

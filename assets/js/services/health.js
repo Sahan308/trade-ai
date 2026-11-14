@@ -9,7 +9,7 @@
       const base = window.TRADE_AI_CONFIG.api.backendBaseUrl;
       if (!base) return { status: "not_configured" };
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), window.TRADE_AI_CONFIG.api.requestTimeoutMs);
+      const t = setTimeout(() => ctrl.abort(), window.TRADE_AI_CONFIG.api.backendTimeoutMs || window.TRADE_AI_CONFIG.api.requestTimeoutMs);
       try {
         const res = await fetch(`${base.replace(/\/$/, "")}/health`, { signal: ctrl.signal, headers: { Accept: "application/json" } });
         const body = await res.json().catch(() => null);

@@ -29,6 +29,16 @@ class Settings(BaseSettings):
     # Concurrent WebSocket connections per client IP (per process)
     ws_max_per_ip: int = 10
 
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def normalise_db_url(cls, v):
+        """Hosted Postgres providers hand out postgres:// or postgresql:// URLs; use the psycopg 3 driver."""
+        if isinstance(v, str):
+            for prefix in ("postgres://", "postgresql://"):
+                if v.startswith(prefix):
+                    return "postgresql+psycopg://" + v[len(prefix):]
+        return v
+
     @field_validator("cors_origins", "markets", mode="before")
     @classmethod
     def split_origins(cls, v):

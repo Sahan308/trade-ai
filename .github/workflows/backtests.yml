@@ -1,0 +1,27 @@
+name: Weekly backtests
+# Refreshes stored backtests on the hosted database (results are shown on the History page).
+on:
+  schedule:
+    - cron: "23 3 * * 1"
+  workflow_dispatch:
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: backend } }
+    env:
+      TRADEAI_DATABASE_URL: ${{ secrets.TRADEAI_DATABASE_URL }}
+      TRADEAI_ENV: production
+    steps:
+      - name: Skip when no database is configured
+        id: check
+        run: if [ -z "$TRADEAI_DATABASE_URL" ]; then echo "skip=1" >> "$GITHUB_OUTPUT"; fi
+        working-directory: .
+      - uses: actions/checkout@v5
+        if: steps.check.outputs.skip != '1'
+      - uses: actions/setup-python@v6
+        if: steps.check.outputs.skip != '1'
+        with: { python-version: "3.12" }
+      - if: steps.check.outputs.skip != '1'
+        run: |
+          pip install -r requirements.txt && alembic upgrade head
+          for s in BTCUSDT ETHUSDT BNBUSDT; do python -m app.backtest --symbol $s --market spot --days 180; done

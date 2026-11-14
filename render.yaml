@@ -1,0 +1,18 @@
+# Render Blueprint — TRADE-AI API (free web service). Database: Neon (or any Postgres), set TRADEAI_DATABASE_URL in the dashboard.
+services:
+  - type: web
+    name: trade-ai-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: TRADEAI_ENV
+        value: production
+      - key: TRADEAI_CORS_ORIGINS
+        value: https://sahan308.github.io
+      - key: TRADEAI_DATABASE_URL
+        sync: false          # paste your Neon connection string in the Render dashboard
