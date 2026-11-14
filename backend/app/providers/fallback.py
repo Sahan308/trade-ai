@@ -53,6 +53,11 @@ class FallbackProvider:
             return self._futures("ticker", market, symbol)
         return self.primary.ticker(market, symbol)
 
+    def specs(self, market, symbol):
+        if market == MarketType.futures:
+            return self._futures("specs", market, symbol)
+        return self.primary.specs(market, symbol)
+
     def funding(self, symbol):
         return self._futures("funding", symbol)
 

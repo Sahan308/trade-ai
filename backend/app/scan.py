@@ -13,6 +13,7 @@ from .db import get_engine, get_session
 from .providers.base import MarketType, ProviderError
 from .signals.engine import evaluate
 from .signals.store import save
+from .signals.tracker import alert_for_new_signal, track_open
 from .signals.strategy import PROFILES
 
 log = logging.getLogger("tradeai.scan")
@@ -53,6 +54,9 @@ def scan_once(provider, profile: str = "day") -> list[dict]:
         session = next(get_session())
         try:
             row, created = save(session, res)
+            if created and row.side in ("LONG", "SHORT"):
+                alert_for_new_signal(session, row)
+                session.commit()
         finally:
             session.close()
         log.info("scan %s %s → %s%s", sym, mkt, res["side"], "" if created else " (already stored)")
@@ -72,6 +76,11 @@ def main():
     while True:
         for r in scan_once(provider, args.profile):
             print(r)
+        session = next(get_session())
+        try:
+            print({"lifecycle_events": track_open(session, provider)})
+        finally:
+            session.close()
         if not args.loop:
             break
         time.sleep(args.loop)

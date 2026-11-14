@@ -105,6 +105,17 @@ class HyperliquidProvider:
         except (KeyError, TypeError, ValueError):
             raise ProviderError("bad_payload", "Unexpected funding payload")
 
+    def specs(self, market: MarketType, symbol: str) -> dict:
+        self._require_futures(market)
+        coin = to_coin(symbol)
+        meta = self._info({"type": "meta"})
+        u = next((x for x in meta.get("universe", []) if x.get("name") == coin), None)
+        if u is None:
+            raise ProviderError("bad_request", f"{coin} is not listed on the fallback provider")
+        return {"symbol": coin, "market": "futures", "tick_size": None, "step_size": 10 ** -int(u.get("szDecimals", 0)),
+                "min_qty": None, "min_notional": 10.0, "mmr": None, "source": SOURCE,
+                "max_leverage": u.get("maxLeverage")}
+
     # ---- streams ----
     def kline_stream(self, market: MarketType, symbol: str, interval: str) -> StreamSpec:
         self._require_futures(market)

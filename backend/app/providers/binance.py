@@ -188,3 +188,40 @@ def _binance_funding_spec(self, symbol: str) -> StreamSpec:
 
 BinanceProvider.kline_stream = _binance_kline_spec
 BinanceProvider.funding_stream = _binance_funding_spec
+
+
+# ---------------- Contract specifications ----------------
+def _filters_to_specs(sym_info: dict, market: MarketType) -> dict:
+    f = {x["filterType"]: x for x in sym_info.get("filters", [])}
+    notional = f.get("NOTIONAL", {}).get("minNotional") or f.get("MIN_NOTIONAL", {}).get("minNotional") or f.get("MIN_NOTIONAL", {}).get("notional")
+    mmr = sym_info.get("maintMarginPercent")
+    return {
+        "symbol": sym_info["symbol"], "market": market.value,
+        "tick_size": float(f["PRICE_FILTER"]["tickSize"]), "step_size": float(f["LOT_SIZE"]["stepSize"]),
+        "min_qty": float(f["LOT_SIZE"]["minQty"]), "min_notional": float(notional) if notional else None,
+        "mmr": float(mmr) / 100 if mmr else None, "source": SOURCES[market],
+    }
+
+
+def _binance_specs(self, market: MarketType, symbol: str) -> dict:
+    sym = normalize_symbol(symbol)
+
+    def load_spot():
+        info = self._get(MarketType.spot, "/api/v3/exchangeInfo", {"symbol": sym})
+        return {s["symbol"]: s for s in info.get("symbols", [])}
+
+    def load_futures():  # one call for all contracts, cached for an hour
+        info = self._get(MarketType.futures, "/fapi/v1/exchangeInfo", {})
+        return {s["symbol"]: s for s in info.get("symbols", [])}
+
+    table = (self._cached(("specs", "spot", sym), 3600, load_spot) if market == MarketType.spot
+             else self._cached(("specs", "futures"), 3600, load_futures))
+    if sym not in table:
+        raise ProviderError("bad_request", f"{sym} is not listed on {SOURCES[market]}")
+    try:
+        return _filters_to_specs(table[sym], market)
+    except (KeyError, TypeError, ValueError):
+        raise ProviderError("bad_payload", "Unexpected exchange info payload")
+
+
+BinanceProvider.specs = _binance_specs

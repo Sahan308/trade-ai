@@ -7,9 +7,11 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from . import __version__
+from .api.alerts import router as alerts_router
 from .api.analysis import router as analysis_router
 from .api.health import router as health_router
 from .api.markets import router as markets_router
+from .api.risk import router as risk_router
 from .api.signals import router as signals_router
 from .config import get_settings
 from .errors import install_error_handlers
@@ -76,7 +78,9 @@ def create_app(provider=None, hub: StreamHub | None = None, limiter=None) -> Fas
     app.include_router(health_router)
     app.include_router(markets_router)
     app.include_router(analysis_router)
+    app.include_router(alerts_router)
     app.include_router(signals_router)
+    app.include_router(risk_router)
     app.include_router(streams_router)
     return app
 

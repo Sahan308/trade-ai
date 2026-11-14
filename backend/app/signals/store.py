@@ -34,5 +34,5 @@ def save(session: Session, result: dict) -> tuple[Signal, bool]:
 
 def to_api(row: Signal) -> dict:
     p = dict(row.payload)
-    p.update(id=row.id, lifecycle=row.lifecycle, created_at=row.created_at.isoformat() if row.created_at else None)
+    p.update(id=row.id, lifecycle=row.lifecycle, outcome=row.outcome, created_at=row.created_at.isoformat() if row.created_at else None)
     return p

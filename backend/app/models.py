@@ -48,12 +48,39 @@ class Signal(Base):
     data_as_of: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     payload: Mapped[dict] = mapped_column(JSON, nullable=False)   # full engine output incl. evidence + config snapshot
+    outcome: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # simulated result once the lifecycle ends
 
 
 IMMUTABLE_SIGNAL_FIELDS = {c for c in ("id", "fingerprint", "created_at", "generated_at", "symbol", "market", "timeframe", "side",
                                       "strategy", "strategy_version", "config_hash", "score", "data_as_of", "expires_at", "payload")}
 
-from sqlalchemy import event, inspect as _inspect  # noqa: E402
+from sqlalchemy import ForeignKey, UniqueConstraint, event, inspect as _inspect  # noqa: E402
+
+
+class SignalEvent(Base):
+    """Append-only lifecycle events (triggered, tp1_hit, stopped, …)."""
+    __tablename__ = "signal_events"
+    __table_args__ = (UniqueConstraint("signal_id", "seq"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    signal_id: Mapped[str] = mapped_column(String(36), ForeignKey("signals.id"), nullable=False, index=True)
+    seq: Mapped[int] = mapped_column(Integer, nullable=False)
+    type: Mapped[str] = mapped_column(String(32), nullable=False)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    price: Mapped[float | None] = mapped_column(JSON, nullable=True)
+    detail: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class Alert(Base):
+    """In-app alerts (new signals and lifecycle changes). Global until accounts exist (Milestone 7)."""
+    __tablename__ = "alerts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    signal_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("signals.id"), nullable=True, index=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    symbol: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    message: Mapped[str] = mapped_column(String(1000), nullable=False)
 
 
 @event.listens_for(Signal, "before_update")
