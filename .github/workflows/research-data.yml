@@ -1,0 +1,17 @@
+name: Research data
+on:
+  workflow_dispatch:
+    inputs:
+      days: { description: "days of history", default: "1095" }
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: backend } }
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.txt
+      - run: python scripts/fetch_history.py --out ../research-data --days ${{ inputs.days }} BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT ADAUSDT LINKUSDT AVAXUSDT
+      - uses: actions/upload-artifact@v4
+        with: { name: research-data, path: research-data, retention-days: 7 }
