@@ -1,21 +1,32 @@
-"""Simple in-memory token bucket per client IP for /api/* routes.
-Single-process only; use a shared store (e.g. Redis) when running several workers."""
+"""Rate limiting for /api/* and WebSocket connection attempts.
+
+* No TRADEAI_REDIS_URL  → in-memory token bucket (correct for a single process).
+* TRADEAI_REDIS_URL set → shared fixed-window counter in Redis, correct across processes/servers.
+If Redis is unreachable the limiter fails open (requests allowed) and logs a warning, so a Redis
+outage can't take the API down."""
+import asyncio
+import logging
 import threading
 import time
+import uuid
 
 from fastapi import Request
 
 from .errors import error_response
 
+log = logging.getLogger("tradeai.ratelimit")
 
-class RateLimiter:
+
+class MemoryRateLimiter:
+    shared = False
+
     def __init__(self, per_minute: int):
         self.capacity = max(1, per_minute)
         self.rate = self.capacity / 60.0
         self._buckets: dict[str, tuple[float, float]] = {}
         self._lock = threading.Lock()
 
-    def allow(self, key: str) -> tuple[bool, int]:
+    async def allow(self, key: str) -> tuple[bool, int]:
         now = time.monotonic()
         with self._lock:
             tokens, last = self._buckets.get(key, (float(self.capacity), now))
@@ -27,18 +38,47 @@ class RateLimiter:
             return False, int((1 - tokens) / self.rate) + 1
 
 
-def install_rate_limit(app, per_minute: int) -> None:
-    limiter = RateLimiter(per_minute)
+class RedisRateLimiter:
+    shared = True
+
+    def __init__(self, redis, per_minute: int, prefix: str = "tradeai:rl"):
+        self.redis, self.limit, self.prefix = redis, max(1, per_minute), prefix
+
+    async def allow(self, key: str) -> tuple[bool, int]:
+        now = time.time()
+        window = int(now // 60)
+        rkey = f"{self.prefix}:{key}:{window}"
+        try:
+            pipe = self.redis.pipeline()
+            pipe.incr(rkey)
+            pipe.expire(rkey, 61)
+            count, _ = await asyncio.wait_for(pipe.execute(), timeout=0.5)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Redis rate limiter unavailable (%s); allowing request", exc.__class__.__name__)
+            return True, 0
+        if int(count) <= self.limit:
+            return True, 0
+        return False, max(1, 60 - int(now % 60))
+
+
+def build_limiter(per_minute: int, redis_url: str | None):
+    if not redis_url:
+        return MemoryRateLimiter(per_minute)
+    import redis.asyncio as aioredis
+
+    return RedisRateLimiter(aioredis.from_url(redis_url, socket_timeout=0.5, socket_connect_timeout=0.5), per_minute)
+
+
+def install_rate_limit(app, limiter) -> None:
     app.state.rate_limiter = limiter
 
     @app.middleware("http")
     async def rate_limit(request: Request, call_next):
         if request.url.path.startswith("/api/"):
             ip = request.client.host if request.client else "unknown"
-            ok, retry = limiter.allow(ip)
+            ok, retry = await limiter.allow(ip)
             if not ok:
                 if not getattr(request.state, "request_id", None):
-                    import uuid
                     request.state.request_id = uuid.uuid4().hex
                 resp = error_response(request, 429, "rate_limited", "Too many requests")
                 resp.headers["Retry-After"] = str(retry)

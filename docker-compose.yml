@@ -12,14 +12,19 @@ services:
       test: ["CMD-SHELL", "pg_isready -U tradeai"]
       interval: 5s
       retries: 10
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
   api:
     build: ./backend
     environment:
       TRADEAI_ENV: development
       TRADEAI_DATABASE_URL: postgresql+psycopg://tradeai:tradeai@db:5432/tradeai
       TRADEAI_CORS_ORIGINS: http://localhost:8080
+      TRADEAI_REDIS_URL: redis://redis:6379/0
     ports: ["8000:8000"]
     depends_on:
       db: { condition: service_healthy }
+      redis: { condition: service_started }
 volumes:
   pgdata:

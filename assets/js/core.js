@@ -60,8 +60,23 @@
   TA.fmtPct = (n) => (n == null ? "—" : `${n > 0 ? "+" : ""}${n.toFixed(2)}%`);
   TA.fmtCompact = (n) =>
     n == null ? "—" : Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(n);
-  TA.fmtTime = (d) =>
-    new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  // ---- Timezone: data is kept in UTC (epoch ms); only display uses the chosen zone ----
+  TA.localTz = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  TA.getTz = () => { try { return localStorage.getItem("ta-tz") || "local"; } catch { return "local"; } };
+  TA.setTz = (tz) => { try { localStorage.setItem("ta-tz", tz); } catch {} };
+  TA.activeTz = () => { const t = TA.getTz(); return t === "local" ? TA.localTz() : t; };
+  TA.timezones = () => {
+    let all = [];
+    try { all = Intl.supportedValuesOf("timeZone"); } catch {}
+    return ["UTC", ...all.filter((z) => z !== "UTC")];
+  };
+  TA.fmtTime = (d) => {
+    try {
+      return new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: TA.activeTz(), timeZoneName: "short" });
+    } catch {
+      return new Date(d).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC", timeZoneName: "short" });
+    }
+  };
   TA.ago = (d) => {
     const s = Math.max(0, Math.round((Date.now() - new Date(d)) / 1000));
     if (s < 60) return `${s}s ago`;

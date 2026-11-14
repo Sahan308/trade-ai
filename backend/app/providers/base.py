@@ -1,5 +1,6 @@
 """Provider-neutral market data types. Exchange adapters convert their payloads into these."""
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 
@@ -42,6 +43,7 @@ class Ticker:
     data_time: datetime
     source: str
     fetched_at: datetime
+    price_label: str = "Last price"
 
 
 @dataclass(frozen=True)
@@ -55,6 +57,7 @@ class FundingSnapshot:
     data_time: datetime
     source: str
     fetched_at: datetime
+    index_label: str = "Index price"
 
 
 class ProviderError(Exception):
@@ -65,3 +68,18 @@ class ProviderError(Exception):
         self.kind = kind
         self.message = message
         self.retry_after = retry_after
+
+
+@dataclass(frozen=True)
+class StreamSpec:
+    """How to open one upstream WebSocket and turn its messages into events.
+
+    parse(text) returns None (ignore) or an event dict:
+      {"type": "candle", "candle": Candle, "closed": bool}  or  {"type": "funding", "data": FundingSnapshot}
+    """
+    url: str
+    parse: Callable[[str], dict | None]
+    subscribe: str | None = None      # message to send after connecting (if the venue needs one)
+    ping: str | None = None           # application-level keepalive message, if any
+    source: str = ""
+    key: tuple = field(default_factory=tuple)

@@ -138,3 +138,53 @@ class BinanceProvider:
                 raise ProviderError("bad_payload", "Unexpected funding payload")
 
         return self._cached(("funding", sym), self.cache_ttl["funding"], load)
+
+
+# ---------------- WebSocket stream specs ----------------
+import json as _json  # noqa: E402
+
+from .base import Candle, StreamSpec  # noqa: E402
+
+WS_BASES = {MarketType.spot: "wss://data-stream.binance.vision/ws", MarketType.futures: "wss://fstream.binance.com/market/ws"}
+
+
+def _kline_event(text: str):
+    try:
+        m = _json.loads(text)
+        k = m["k"]
+        o, h, l, c, v = (float(k[x]) for x in ("o", "h", "l", "c", "v"))
+        if not (h >= max(o, c) and l <= min(o, c) and v >= 0):
+            return None
+        return {"type": "candle", "candle": Candle(_utc(k["t"]), o, h, l, c, v), "closed": bool(k.get("x"))}
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _mark_event(text: str):
+    try:
+        m = _json.loads(text)
+        if m.get("e") != "markPriceUpdate":
+            return None
+        now = datetime.now(timezone.utc)
+        return {"type": "funding", "data": FundingSnapshot(m["s"], float(m["p"]), float(m["i"]), float(m["r"]),
+                                                          _utc(m["T"]), _utc(m["E"]), SOURCES[MarketType.futures], now)}
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _binance_kline_spec(self, market: MarketType, symbol: str, interval: str) -> StreamSpec:
+    sym = normalize_symbol(symbol)
+    if interval not in BINANCE_INTERVALS:
+        raise ProviderError("bad_request", f"Unsupported interval: {interval}")
+    return StreamSpec(f"{WS_BASES[market]}/{sym.lower()}@kline_{BINANCE_INTERVALS[interval]}", _kline_event,
+                      source=SOURCES[market], key=("binance", "kline", market.value, sym, interval))
+
+
+def _binance_funding_spec(self, symbol: str) -> StreamSpec:
+    sym = normalize_symbol(symbol)
+    return StreamSpec(f"{WS_BASES[MarketType.futures]}/{sym.lower()}@markPrice@1s", _mark_event,
+                      source=SOURCES[MarketType.futures], key=("binance", "mark", sym))
+
+
+BinanceProvider.kline_stream = _binance_kline_spec
+BinanceProvider.funding_stream = _binance_funding_spec

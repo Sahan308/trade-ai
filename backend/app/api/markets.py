@@ -59,6 +59,7 @@ class TickerResponse(BaseModel):
     data_time: datetime
     source: str
     fetched_at: datetime
+    price_label: str = "Last price"
 
 
 class FundingResponse(BaseModel):
@@ -70,6 +71,7 @@ class FundingResponse(BaseModel):
     data_time: datetime
     source: str
     fetched_at: datetime
+    index_label: str = "Index price"
 
 
 _STATUS = {"bad_request": 400, "rate_limited": 503, "region_blocked": 503, "unavailable": 502, "bad_payload": 502}

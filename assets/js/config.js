@@ -22,7 +22,9 @@ window.TRADE_AI_CONFIG = {
     backendBaseUrl: null,
     // Public, key-less exchange data used directly from the browser when no backend is set.
     // Set to null to disable (the app then shows "not connected" states).
-    publicProvider: "binance",          // TRADE-AI API, e.g. "http://localhost:8000" — enables the API status indicator
+    publicProvider: "binance",
+    // Used for Futures only when the primary provider is region-blocked or unreachable.
+    futuresFallbackProvider: "hyperliquid",          // TRADE-AI API, e.g. "http://localhost:8000" — enables the API status indicator
     marketDataBaseUrl: null,       // e.g. "https://api.your-backend.example/v1/market"
     signalsBaseUrl: null,          // e.g. "https://api.your-backend.example/v1/signals"
     requestTimeoutMs: 8000,

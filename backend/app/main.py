@@ -11,16 +11,27 @@ from .api.health import router as health_router
 from .api.markets import router as markets_router
 from .config import get_settings
 from .errors import install_error_handlers
+from .api.streams import router as streams_router
 from .providers.binance import BinanceProvider
-from .ratelimit import install_rate_limit
+from .providers.fallback import FallbackProvider
+from .providers.hyperliquid import HyperliquidProvider
+from .ratelimit import build_limiter, install_rate_limit
+from .streams import StreamHub
 
 
-def create_app(provider=None) -> FastAPI:
+def default_provider(settings):
+    primary = BinanceProvider(settings.binance_spot_base, settings.binance_futures_base)
+    fb = HyperliquidProvider(settings.futures_fallback_base) if settings.futures_fallback_base else None
+    return FallbackProvider(primary, fb)
+
+
+def create_app(provider=None, hub: StreamHub | None = None, limiter=None) -> FastAPI:
     settings = get_settings()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         yield
+        await app.state.hub.close()
         close = getattr(app.state.provider, "close", None)
         if close:
             close()
@@ -34,7 +45,9 @@ def create_app(provider=None) -> FastAPI:
         redoc_url=None,
         lifespan=lifespan,
     )
-    app.state.provider = provider or BinanceProvider(settings.binance_spot_base, settings.binance_futures_base)
+    app.state.provider = provider or default_provider(settings)
+    app.state.hub = hub or StreamHub()
+    app.state.ws_counts = {}
 
 
     @app.middleware("http")
@@ -48,7 +61,7 @@ def create_app(provider=None) -> FastAPI:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
 
-    install_rate_limit(app, settings.rate_limit_per_minute)
+    install_rate_limit(app, limiter or build_limiter(settings.rate_limit_per_minute, settings.redis_url))
     # CORS is added last so it wraps everything (including 429 responses from the rate limiter).
     app.add_middleware(
         CORSMiddleware,
@@ -60,6 +73,7 @@ def create_app(provider=None) -> FastAPI:
     install_error_handlers(app)
     app.include_router(health_router)
     app.include_router(markets_router)
+    app.include_router(streams_router)
     return app
 
 

@@ -18,10 +18,16 @@ class Settings(BaseSettings):
     # Market data (public, key-less)
     binance_spot_base: str = "https://data-api.binance.vision"
     binance_futures_base: str = "https://fapi.binance.com"
+    # Futures fallback when Binance Futures is region-blocked/unreachable (empty string disables)
+    futures_fallback_base: str = "https://api.hyperliquid.xyz"
     # Symbols listed by /api/markets, as SYMBOL:market pairs
     markets: Annotated[list[str], NoDecode] = ["BTCUSDT:spot", "ETHUSDT:spot", "SOLUSDT:futures", "BNBUSDT:spot", "XRPUSDT:futures"]
     # Inbound API rate limit per client IP
     rate_limit_per_minute: int = 120
+    # Shared limiter store for multi-process / multi-server deployments, e.g. redis://localhost:6379/0
+    redis_url: str | None = None
+    # Concurrent WebSocket connections per client IP (per process)
+    ws_max_per_ip: int = 10
 
     @field_validator("cors_origins", "markets", mode="before")
     @classmethod

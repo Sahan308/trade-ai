@@ -21,7 +21,7 @@
   const SYMBOL_RE = /^[A-Z0-9]{2,15}USDT$/;
 
   class ProviderError extends Error {
-    constructor(message, { status, retryAfter } = {}) { super(message); this.status = status; this.retryAfter = retryAfter; }
+    constructor(message, { status, retryAfter, kind } = {}) { super(message); this.status = status; this.retryAfter = retryAfter; this.kind = kind; }
   }
 
   // ---- validation helpers ----
@@ -63,10 +63,10 @@
     const timer = setTimeout(() => ctrl.abort(), (window.TRADE_AI_CONFIG?.api?.requestTimeoutMs) || 8000);
     let res;
     try { res = await fetch(url, { signal: ctrl.signal }); }
-    catch (e) { throw new ProviderError(e.name === "AbortError" ? "Request timed out" : "Network error — provider unreachable"); }
+    catch (e) { throw new ProviderError(e.name === "AbortError" ? "Request timed out" : "Network error — provider unreachable", { kind: "network" }); }
     finally { clearTimeout(timer); }
     if (res.status === 429 || res.status === 418) throw new ProviderError("Rate limited by provider", { status: res.status, retryAfter: Number(res.headers.get("Retry-After")) || 60 });
-    if (res.status === 451 || res.status === 403) throw new ProviderError("Provider not available in this region", { status: res.status });
+    if (res.status === 451 || res.status === 403) throw new ProviderError("Provider not available in this region", { status: res.status, kind: "region" });
     if (!res.ok) throw new ProviderError(`Provider error (HTTP ${res.status})`, { status: res.status });
     return res.json();
   }

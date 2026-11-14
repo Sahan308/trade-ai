@@ -103,7 +103,7 @@
   const wlRows = (data) => data.map((d) => {
     const key = d.symbol + d.market, prev = prevPx.get(key); prevPx.set(key, d.last);
     const flash = prev != null && prev !== d.last ? (d.last > prev ? "flash-up" : "flash-down") : "";
-    return `<tr class="${flash}"><th scope="row" style="font-weight:600">${TA.esc(d.symbol)}</th><td><span class="badge">${d.market}</span></td><td class="r num">${TA.fmtPrice(d.last)}</td><td class="r">${TA.chg(d.change24h)}</td><td class="r num" title="24h quote volume (USDT)">${TA.fmtCompact(d.volume)}</td></tr>`;
+    return `<tr class="${flash}"><th scope="row" style="font-weight:600">${TA.esc(d.symbol)}</th><td><span class="badge">${d.market}</span></td><td class="r num">${TA.fmtPrice(d.last)}${d.priceLabel ? ` <span class="muted" style="font-size:.7rem" title="${d.priceLabel} from ${TA.esc(d.source)}">mid</span>` : ""}</td><td class="r">${TA.chg(d.change24h)}</td><td class="r num" title="24h quote volume (USDT)">${TA.fmtCompact(d.volume)}</td></tr>`;
   }).join("");
   const srcLine = (r) => r.source === "demo"
     ? `<p class="demo-stamp" style="margin:10px 0 0">${TA.icon("flask", "icon-sm")}Sample fixture — not market data</p>`
@@ -191,10 +191,11 @@
         prem.innerHTML = `<div class="result-grid" style="grid-template-columns:repeat(auto-fit,minmax(125px,1fr));margin-top:12px">
           ${cell("Last price", TA.fmtPrice(cs[cs.length - 1].c), "Price of the most recent trade on this contract.")}
           ${cell("Mark price", TA.fmtPrice(p.mark), "Price Binance uses for unrealised P&L and liquidations.")}
-          ${cell("Index price", TA.fmtPrice(p.index), "Average spot price across several exchanges.")}
-          ${cell("Funding rate", `<span class="${p.fundingRate >= 0 ? "up" : "down"}">${(p.fundingRate * 100).toFixed(4)}%</span>`, "Periodic payment between longs and shorts. Positive: longs pay shorts.")}
+          ${p.indexLabel === "Oracle price" ? cell("Oracle price", TA.fmtPrice(p.index), "Hyperliquid's reference price from several exchanges (closest equivalent to an index price).") : cell("Index price", TA.fmtPrice(p.index), "Average spot price across several exchanges.")}
+          ${cell("Funding rate", `<span class="${p.fundingRate >= 0 ? "up" : "down"}">${(p.fundingRate * 100).toFixed(4)}%</span>`, `Periodic payment between longs and shorts${p.fundingInterval ? `, settled every ${p.fundingInterval}` : ""}. Positive: longs pay shorts.`)}
           ${cell("Next funding", TA.fmtTime(p.nextFundingTime))}
-        </div><p class="muted" style="font-size:.78rem;margin:8px 0 0">Source: ${TA.esc(p.source)} · mark/index/funding updated ${ageHtml(ts)}</p>`;
+        </div><p class="muted" style="font-size:.78rem;margin:8px 0 0">Source: ${TA.esc(p.source)} · mark/index/funding updated ${ageHtml(ts)}</p>
+        ${TA.MarketData.usingFuturesFallback() ? `<div class="integration" style="margin-top:10px">${TA.icon("info", "icon-sm")}<span>Binance Futures isn't reachable from your region, so Futures data comes from Hyperliquid perpetuals (USDC-settled). Prices can differ slightly from Binance.</span></div>` : ""}`;
       };
       TA.MarketData.getPremium(w.symbol).then((pr) => {
         if (!host.isConnected) return;
@@ -401,6 +402,13 @@
     el.innerHTML = `<span style="color:${col};display:inline-flex">${TA.icon(ic, "icon-sm")}</span><span>${label}</span>`;
     el.title = r.checkedAt ? `Checked ${TA.fmtTime(r.checkedAt)}` : "";
   }
+
+  // ---------- Timezone preference (display only; stored in this browser) ----------
+  const tzSel = $("#tzSel");
+  tzSel.innerHTML = `<option value="local">Local — ${TA.esc(TA.localTz())}</option>` + TA.timezones().map((z) => `<option value="${z}">${z.replace(/_/g, " ")}</option>`).join("");
+  tzSel.value = TA.getTz();
+  if (tzSel.value !== TA.getTz()) tzSel.value = "local";
+  tzSel.addEventListener("change", () => { TA.setTz(tzSel.value); TA.toast(`Times now shown in ${TA.activeTz().replace(/_/g, " ")}`, "clock"); route(); });
 
   renderConn();
   renderApi();
