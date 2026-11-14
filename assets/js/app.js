@@ -164,7 +164,12 @@
         <span class="muted">Updated ${ageHtml(lastMsg)}</span>
         ${r.meta && r.meta.gaps ? `<span class="down">${r.meta.gaps} missing candle(s) in range</span>` : ""}</div>`;
     };
-    const schedule = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (current()) { draw(); renderMeta(); } }); };
+    // rAF while visible; a slow timer when hidden (rAF pauses there) so status/freshness stay truthful
+    const schedule = () => {
+      if (raf) return;
+      const run = () => { raf = 0; if (current()) { draw(); renderMeta(); } };
+      raf = document.hidden ? setTimeout(run, 1000) : requestAnimationFrame(run);
+    };
     const merge = (list) => {
       const byT = new Map(cs.map((c) => [c.t, c]));
       list.forEach((c) => byT.set(c.t, c));
