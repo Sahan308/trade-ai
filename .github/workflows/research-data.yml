@@ -12,6 +12,6 @@ jobs:
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
       - run: pip install -r requirements.txt
-      - run: python scripts/fetch_history.py --out ../research-data --days ${{ inputs.days }} BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT ADAUSDT LINKUSDT AVAXUSDT
+      - run: PYTHONPATH=. python scripts/fetch_history.py --out ../research-data --days ${{ inputs.days }} BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT ADAUSDT LINKUSDT AVAXUSDT
       - uses: actions/upload-artifact@v4
         with: { name: research-data, path: research-data, retention-days: 7 }
