@@ -48,6 +48,24 @@
       } catch (e) { return { status: "error", source: "live", data: null, error: e.message }; }
     },
 
+    async getEvents(id) {
+      if (!backend()) return { status: "disconnected", data: null };
+      try {
+        const res = await fetch(`${backend()}/api/signals/${encodeURIComponent(id)}/events`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return { status: "ok", data: await res.json() };
+      } catch (e) { return { status: "error", error: e.message, data: null }; }
+    },
+
+    async getAlerts(afterId = 0) {
+      if (!backend()) return { status: "disconnected", data: null };
+      try {
+        const res = await fetch(`${backend()}/api/alerts?after_id=${afterId}&limit=100`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return { status: "ok", data: (await res.json()).alerts };
+      } catch (e) { return { status: "error", error: e.message, data: null }; }
+    },
+
     async getUsage({ demo } = {}) {
       const limit = window.TRADE_AI_CONFIG.pricing.trialSignals;
       if (demo) return { status: "ok", source: "demo", data: { used: TA.DEMO.trialUsed, limit } };

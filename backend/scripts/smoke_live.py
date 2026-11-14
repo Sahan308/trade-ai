@@ -24,10 +24,15 @@ async def main():
     ok = True
     with httpx.Client(base_url=API, timeout=20) as c:
         for url in ["/api/markets/BTCUSDT/ticker?market=spot", "/api/markets/SOLUSDT/ticker?market=futures",
-                    "/api/futures/SOLUSDT/funding", "/api/markets/BTCUSDT/candles?market=spot&interval=1H&limit=5"]:
+                    "/api/futures/SOLUSDT/funding", "/api/markets/BTCUSDT/candles?market=spot&interval=1H&limit=5",
+                    "/api/markets/BTCUSDT/specs?market=spot", "/api/markets/SOLUSDT/specs?market=futures",
+                    "/api/risk/size?balance=1000&risk_pct=1&entry=70000&stop=69000&side=LONG&market=spot&symbol=BTCUSDT",
+                    "/api/risk/size?balance=1000&risk_pct=1&entry=80&stop=78&side=LONG&market=futures&leverage=10&symbol=SOLUSDT&hold_hours=24"]:
             r = c.get(url)
             body = r.json()
-            summary = {k: body.get(k) for k in ("source", "last_price", "price_label", "mark_price", "index_price", "index_label", "gaps")} if r.is_success else body
+            keys = ("source", "last_price", "price_label", "mark_price", "index_price", "index_label", "gaps", "tick_size", "step_size",
+                    "min_notional", "mmr", "qty", "actual_risk", "liquidation_price", "funding_cost", "notes")
+            summary = {k: body.get(k) for k in keys if body.get(k) is not None} if r.is_success else body
             print(r.status_code, url, json.dumps(summary))
             ok &= r.is_success
     for path, want in [("/ws/chart/BTCUSDT/1m?market=spot", "candle"), ("/ws/market/SOLUSDT", "funding")]:

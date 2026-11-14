@@ -29,7 +29,7 @@
     { id: "history", label: "Signal history", icon: "history", ready: true },
     { id: "risk", label: "Risk manager", icon: "gauge", ready: true },
     { group: "Settings" },
-    { id: "alerts", label: "Alerts", icon: "bell" },
+    { id: "alerts", label: "Alerts", icon: "bell", ready: true },
     { id: "account", label: "Account", icon: "user" },
     { id: "billing", label: "Billing", icon: "card", ready: true }
   ];
@@ -423,37 +423,93 @@
     },
 
     risk(el) {
+      const W = C.watchlist;
       el.innerHTML = `<div class="grid-dash">
-        <section class="card panel span-6"><div class="panel-head"><h2>${TA.icon("gauge")}Position size calculator</h2><span class="badge badge-info">Works offline</span></div>
+        <section class="card panel span-6"><div class="panel-head"><h2>${TA.icon("gauge")}Position size calculator</h2><span class="badge badge-info">Calculation only</span></div>
           <form id="rf" class="form-grid" novalidate>
-            ${fld("bal", "Account balance (USD)", 1000, "Funds you're willing to put at risk in this account.")}
-            ${fld("riskPct", "Risk per trade (%)", 1, "Common practice is 0.5–2%.")}
-            ${fld("entry", "Entry price", "", "Your planned entry.")}
-            ${fld("stop", "Stop-loss price", "", "Where the idea is wrong.")}
-            ${fld("lev", "Leverage (Futures)", 1, "1 for Spot.")}
+            <div class="field"><label for="rsym">Market</label><select id="rsym">${W.map((w, i) => `<option value="${i}">${w.symbol} · ${w.market}</option>`).join("")}<option value="custom">Other / manual</option></select><span class="hint" id="h-rsym">Loads tick size, lot size and minimums from the exchange.</span></div>
             <div class="field"><label for="side">Direction</label><select id="side"><option>LONG</option><option>SHORT</option></select><span class="err" id="e-side"></span></div>
-            <div style="grid-column:1/-1"><button class="btn btn-primary" type="submit">Calculate</button></div>
+            ${fld("bal", "Account balance (USDT)", 1000, "Funds in this account.")}
+            ${fld("riskPct", "Risk per trade (%)", 1, "Many traders use 0.5–2%.")}
+            <div class="field"><label for="entry">Entry price</label><div style="display:flex;gap:6px"><input id="entry" inputmode="decimal" aria-describedby="h-entry e-entry" style="flex:1"/><button type="button" class="btn btn-sm" id="usePx">Use price</button></div><span class="hint" id="h-entry">Your planned entry.</span><span class="err" id="e-entry"></span></div>
+            ${fld("stop", "Stop-loss price", "", "Where the idea is wrong.")}
+            ${fld("lev", "Leverage (Futures)", 1, "Spot is always 1×.")}
+            ${fld("fee", "Fee per side (%)", 0.1, "Taker fee; Binance base is ~0.1% spot, ~0.05% futures.")}
+            ${fld("slip", "Slippage per side (%)", 0.05, "Allowance for fills worse than planned.")}
+            ${fld("hold", "Expected holding time (hours)", 0, "Futures only: used to estimate funding.")}
+            <div style="grid-column:1/-1;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button class="btn btn-primary" type="submit">Calculate</button><span class="muted" id="specInfo" style="font-size:.8rem"></span></div>
           </form></section>
-        <section class="card panel span-6"><div class="panel-head"><h2>${TA.icon("target")}Result</h2></div><div id="rr" aria-live="polite">${state("empty", "Enter your numbers", "Results use only what you type in. No market data is needed.")}</div></section></div>`;
+        <section class="card panel span-6"><div class="panel-head"><h2>${TA.icon("target")}Result</h2></div><div id="rr" aria-live="polite">${state("empty", "Enter your numbers", "Size is calculated from your risk and stop distance, including estimated fees and slippage. Nothing is sent to any exchange.")}</div></section></div>`;
       function fld(id, label, val, hint) { return `<div class="field"><label for="${id}">${label}</label><input id="${id}" inputmode="decimal" value="${val}" aria-describedby="h-${id} e-${id}"/><span class="hint" id="h-${id}">${hint}</span><span class="err" id="e-${id}"></span></div>`; }
+      let specs = null, funding = null, lastPx = null;
+      const sel = $("#rsym", el), info = $("#specInfo", el);
+      const cur = () => (sel.value === "custom" ? null : W[+sel.value]);
+      const isFut = () => (cur() ? cur().market === "Futures" : false);
+      async function loadMarket() {
+        specs = funding = lastPx = null;
+        const w = cur();
+        $("#lev", el).disabled = !w || !isFut(); if (!isFut()) $("#lev", el).value = 1;
+        $("#hold", el).disabled = !isFut();
+        $("#fee", el).value = isFut() ? 0.05 : 0.1;
+        if (!w) { info.textContent = "Manual mode: no exchange rounding applied."; return; }
+        info.textContent = "Loading exchange specs…";
+        const [sp, tk, pr] = await Promise.all([TA.MarketData.getSpecs(w.symbol, w.market), TA.MarketData.getWatchlist({}), isFut() ? TA.MarketData.getPremium(w.symbol) : Promise.resolve(null)]);
+        if (!el.isConnected || cur() !== w) return;
+        if (sp.status === "ok") { specs = sp.data; info.textContent = `${specs.source}: tick ${specs.tick_size ?? "—"}, step ${specs.step_size}, min order ${specs.min_notional ?? "—"} USDT${specs.mmr ? `, maint. margin ${(specs.mmr * 100).toFixed(2)}%` : ""}`; }
+        else info.textContent = `Couldn't load exchange specs (${sp.error || "not connected"}). Sizing will not be rounded.`;
+        const row = tk.status === "ok" && tk.data.find((x) => x.symbol === w.symbol && x.market === w.market);
+        if (row) lastPx = row.last;
+        if (pr && pr.status === "ok") funding = pr.data.fundingRate;
+      }
+      sel.addEventListener("change", loadMarket);
+      $("#usePx", el).addEventListener("click", () => { if (lastPx) $("#entry", el).value = lastPx; else TA.toast("Current price not loaded yet", "info"); });
+      loadMarket();
       $("#rf", el).addEventListener("submit", (e) => {
         e.preventDefault();
         const v = (id) => parseFloat($("#" + id, el).value);
-        const vals = { bal: v("bal"), riskPct: v("riskPct"), entry: v("entry"), stop: v("stop"), lev: v("lev") }, side = $("#side", el).value;
-        let ok = true;
-        const err = (id, m) => { $("#e-" + id, el).textContent = m; $("#" + id, el).setAttribute("aria-invalid", m ? "true" : "false"); if (m) ok = false; };
-        Object.entries(vals).forEach(([k, x]) => err(k, !(x > 0) ? "Enter a number above 0." : ""));
-        if (ok && vals.riskPct > 100) err("riskPct", "Must be 100 or less.");
-        if (ok && side === "LONG" && vals.stop >= vals.entry) err("stop", "For a long, the stop must be below entry.");
-        if (ok && side === "SHORT" && vals.stop <= vals.entry) err("stop", "For a short, the stop must be above entry.");
-        if (!ok) { $("#rr", el).innerHTML = state("error", "Check the highlighted fields", "Fix the inputs and calculate again."); return; }
-        const riskUsd = vals.bal * vals.riskPct / 100, dist = Math.abs(vals.entry - vals.stop), qty = riskUsd / dist, notional = qty * vals.entry, margin = notional / vals.lev;
-        const R = (m) => `<div class="result"><small>${m[0]}</small><div>${m[1]}</div></div>`;
-        $("#rr", el).innerHTML = `<div class="result-grid">${[["Amount at risk", TA.fmtUsd(riskUsd)], ["Stop distance", `${TA.fmtPrice(dist)} (${(dist / vals.entry * 100).toFixed(2)}%)`], ["Position size", `${qty.toPrecision(5)} units`], ["Notional value", TA.fmtUsd(notional)], ["Margin required", TA.fmtUsd(margin)], ["1R target (" + side.toLowerCase() + ")", TA.fmtPrice(side === "LONG" ? vals.entry + dist : vals.entry - dist)]].map(R).join("")}</div>
-          ${margin > vals.bal ? `<p class="down" style="margin:12px 0 0;font-size:.86rem">${TA.icon("alert", "icon-sm")} Margin exceeds your balance at this leverage.</p>` : ""}
-          <p class="muted" style="font-size:.78rem;margin:12px 0 0">Doesn't include fees, slippage or funding. Not financial advice.</p>`;
+        ["bal", "riskPct", "entry", "stop", "lev", "fee", "slip", "hold"].forEach((id) => { $("#e-" + id, el).textContent = ""; $("#" + id, el).removeAttribute("aria-invalid"); });
+        const req = { bal: v("bal"), riskPct: v("riskPct"), entry: v("entry"), stop: v("stop") };
+        let bad = false;
+        Object.entries(req).forEach(([k, x]) => { if (!(x > 0)) { $("#e-" + k, el).textContent = "Enter a number above 0."; $("#" + k, el).setAttribute("aria-invalid", "true"); bad = true; } });
+        if (bad) { $("#rr", el).innerHTML = state("error", "Check the highlighted fields", "Fix the inputs and calculate again."); return; }
+        const r = TA.Risk.sizePosition({ balance: req.bal, riskPct: req.riskPct, entry: req.entry, stop: req.stop, side: $("#side", el).value,
+          market: isFut() ? "futures" : "spot", leverage: v("lev") || 1, feeRate: (v("fee") || 0) / 100, slippage: (v("slip") || 0) / 100,
+          specs, fundingRate: funding, holdHours: v("hold") || 0 });
+        if (!r.valid) { $("#rr", el).innerHTML = state("error", "Can't size this trade", r.errors.map(TA.esc).join(" ")); return; }
+        const R = (k, val, tip) => `<div class="result"><small>${tip ? term(k, tip) : k}</small><div>${val}</div></div>`;
+        const qtyTxt = `${r.qty} ${cur() ? cur().symbol.split("/")[0] : "units"}`;
+        $("#rr", el).innerHTML = `<div class="result-grid">
+            ${R("Position size", qtyTxt, "Rounded down to the exchange's lot step, so the risk never exceeds your limit.")}
+            ${R("Order value", "$" + TA.fmtPrice(r.notional))}
+            ${R("Amount at risk", `$${TA.fmtPrice(r.actual_risk)} (${r.actual_risk_pct.toFixed(2)}%)`, "Loss if the stop fills, including estimated fees and slippage on both sides.")}
+            ${R("Margin used", "$" + TA.fmtPrice(r.margin), "Order value ÷ leverage.")}
+            ${R("Fees at stop (est.)", "$" + TA.fmtPrice(r.fees_at_stop))}
+            ${R("Entry / stop (tick-rounded)", `${r.entry_rounded} / ${r.stop_rounded}`)}
+            ${r.liquidation_price != null ? R("Liquidation (est.)", `<span class="${r.liquidation_before_stop ? "down" : ""}">${TA.fmtPrice(r.liquidation_price)}</span>`, "Simplified isolated-margin estimate. The exchange's real level can differ.") : ""}
+            ${r.funding_cost != null ? R("Funding over hold (est.)", `${r.funding_cost >= 0 ? "you pay" : "you receive"} $${TA.fmtPrice(Math.abs(r.funding_cost))}`, "Current funding rate × holding time ÷ 8h. Rates change every period.") : ""}
+          </div>
+          ${r.warnings.length ? `<ul style="margin:14px 0 0;padding-left:18px;color:var(--down);font-size:.86rem">${r.warnings.map((w) => `<li>${TA.esc(w)}</li>`).join("")}</ul>` : ""}
+          <p class="muted" style="font-size:.78rem;margin:12px 0 0">${TA.esc(r.assumptions.note)} Leverage changes the margin and how close liquidation is, not the amount at risk to your stop. Not financial advice; TRADE-AI never places orders.</p>`;
         TA.toast("Position size calculated", "check");
       });
+    },
+
+    async alerts(el) {
+      el.innerHTML = `<section class="card panel"><div class="panel-head"><h2>${TA.icon("bell")}Alerts</h2><span class="muted" style="font-size:.82rem">In-app only · refreshes every 30s</span></div><div id="al"></div></section>`;
+      const host = $("#al", el);
+      const load = async () => {
+        const r = await TA.Signals.getAlerts(0);
+        if (!host.isConnected) return;
+        if (r.status === "disconnected") { host.innerHTML = state("off", "Alerts need the TRADE-AI server", "Alerts are created by the server when a new setup appears or a signal is triggered, hits a target, is stopped, expires or is invalidated. Set <code>api.backendBaseUrl</code> once the backend is hosted."); return; }
+        if (r.status === "error") { host.innerHTML = state("error", "Couldn't load alerts", TA.esc(r.error), retryBtn); return; }
+        if (!r.data.length) { host.innerHTML = state("empty", "No alerts yet", "You'll see new setups and lifecycle changes here."); return; }
+        const icon = (k) => ({ new_signal: "zap", triggered: "target", stopped: "x", expired: "clock", invalidated: "alert" }[k] || (k.startsWith("tp") ? "check" : "bell"));
+        host.innerHTML = `<ul class="list-signals" style="list-style:none;margin:0;padding:0">${r.data.map((a) => `<li class="sig-row" style="cursor:default"><span class="${a.kind === "stopped" || a.kind === "invalidated" ? "down" : a.kind.startsWith("tp") ? "up" : ""}">${TA.icon(icon(a.kind))}</span><span><b>${TA.esc(a.title)}</b><br/><span class="muted" style="font-size:.82rem">${TA.esc(a.message)}</span></span><span class="muted" style="font-size:.78rem">${TA.fmtTime(a.created_at)}</span></li>`).join("")}</ul>`;
+        try { localStorage.setItem("ta-alert-seen", String(r.data[0].id)); } catch {}
+        renderAlertBadge();
+      };
+      await load();
+      every(30000, load);
     },
 
     billing(el) {
@@ -474,7 +530,6 @@
     scanner: ["Market scanner", "Filter pairs by structure, momentum and volume. Needs the market data backend and a scanning service."],
     patterns: ["Pattern & SMC analysis", "Detected patterns, order blocks and liquidity zones, each with the reasoning behind it. Needs an approved analysis service."],
     futures: ["Futures intelligence", "Funding, open interest and liquidation context for perpetual contracts. Needs a derivatives data source."],
-    alerts: ["Alerts", "Notifications when a signal triggers, hits a target or is invalidated. Needs accounts and a notification service."],
     account: ["Account", "Profile, security and preferences. Sign-in isn't connected yet."]
   };
   Object.keys(soonCopy).forEach((id) => (views[id] = (el) => {
@@ -514,7 +569,16 @@
       loadChart(panel);
     } else if (t.dataset.sig) {
       const s = lastSignals.find((x) => x.id === t.dataset.sig);
-      if (s) TA.modal.open(TA.signalDetail(s));
+      if (s) {
+        TA.modal.open(TA.signalDetail(s));
+        if (s.source === "live") TA.Signals.getEvents(s.id).then((r) => {
+          const body = document.querySelector(".modal-body .detail"); if (!body || r.status !== "ok") return;
+          const ev = r.data.events, oc = r.data.outcome;
+          const nice = { triggered: "Entry triggered", tp1_hit: "Target 1 hit", tp2_hit: "Target 2 hit", tp3_hit: "Target 3 hit", stopped: "Stopped", expired: "Expired", invalidated: "Invalidated" };
+          body.insertAdjacentHTML("beforeend", `<div><h3>Lifecycle events</h3>${ev.length ? `<ol style="margin:0;padding-left:18px;font-size:.88rem;color:var(--tx-2)">${ev.map((e) => `<li><b>${nice[e.type] || e.type}</b> at ${TA.fmtPrice(e.price)} · ${TA.fmtTime(e.at)}${e.detail && e.detail.ambiguous_same_candle ? ' <span class="badge">stop and target in the same candle — stop assumed</span>' : ""}</li>`).join("")}</ol>` : '<p class="muted" style="font-size:.86rem;margin:0">Waiting for price to reach the entry zone.</p>'}
+            ${oc ? `<p style="font-size:.86rem;margin:10px 0 0">Simulated result: <b class="${oc.net_r >= 0 ? "up" : "down"}">${oc.net_r >= 0 ? "+" : ""}${oc.net_r.toFixed(2)}R</b> after costs (${oc.targets_hit} target${oc.targets_hit === 1 ? "" : "s"} hit, exit: ${oc.exit}). <span class="muted">Model: ${TA.esc(oc.model)}. A single signal's result says nothing about future results.</span></p>` : ""}</div>`);
+        });
+      }
     }
   });
   document.addEventListener("change", (e) => {
@@ -538,6 +602,16 @@
     el.innerHTML = `<span style="color:${col};display:inline-flex">${TA.icon(ic, "icon-sm")}</span><span>${label}</span>`;
     el.title = r.checkedAt ? `Checked ${TA.fmtTime(r.checkedAt)}` : "";
   }
+
+  // ---------- Alert badge (new alerts since last visit to the Alerts page) ----------
+  async function renderAlertBadge() {
+    const link = document.querySelector('.side-link[data-route="alerts"]'); if (!link) return;
+    let b = link.querySelector(".soon"); const r = await TA.Signals.getAlerts(+(localStorage.getItem("ta-alert-seen") || 0));
+    if (r.status !== "ok" || !r.data.length) { if (b) b.remove(); return; }
+    if (!b) { b = document.createElement("span"); b.className = "soon"; link.appendChild(b); }
+    b.textContent = r.data.length > 99 ? "99+" : String(r.data.length); b.style.color = "var(--accent)"; b.setAttribute("aria-label", `${r.data.length} new alerts`);
+  }
+  if (TA.Signals.isConfigured()) { renderAlertBadge(); setInterval(() => { if (!document.hidden) renderAlertBadge(); }, 60000); }
 
   // ---------- Timezone preference (display only; stored in this browser) ----------
   const tzSel = $("#tzSel");

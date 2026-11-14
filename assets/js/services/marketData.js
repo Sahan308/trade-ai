@@ -130,6 +130,15 @@
       try { return (isFutures(market) ? futProvider() : provider()).streamKlines(market, symbol, tf, onCandle, onStatus); } catch { return null; }
     },
 
+    async getSpecs(symbol, market) {
+      const m = mode(false);
+      if (m === "none") return { status: "disconnected", data: null };
+      try {
+        if (m === "provider") return { status: "ok", data: await withFallback(market, (p) => p.specs(market, symbol)) };
+        return { status: "ok", data: await backendGet(`/api/markets/${apiSym(symbol)}/specs`, { market: market.toLowerCase() }) };
+      } catch (e) { return fail(e); }
+    },
+
     async getPremium(symbol, { demo } = {}) {
       const m = mode(demo);
       if (m === "demo" || m === "none") return { status: m === "none" ? "disconnected" : "empty", data: null };

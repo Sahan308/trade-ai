@@ -37,7 +37,7 @@ def apply(session: Session, row: Signal, series: dict, now: datetime) -> list[di
         extra = " (stop and target touched in the same candle — stop assumed first)" if e["detail"].get("ambiguous_same_candle") else ""
         session.add(Alert(signal_id=row.id, kind=e["type"], symbol=row.symbol,
                           title=f"{LABEL.get(e['type'], e['type'])} · {row.side} {row.symbol} {row.timeframe}",
-                          message=f"At {fmt(e['price'])} on the candle closing {e['at']}{extra}."))
+                          message=f"At {fmt(e['price'])} on the {row.timeframe} candle that closed {datetime.fromisoformat(e['at']).strftime('%Y-%m-%d %H:%M')} UTC{extra}."))
     if res["lifecycle"] != row.lifecycle:
         row.lifecycle = res["lifecycle"]
     if res["outcome"] and row.outcome != res["outcome"]:

@@ -18,6 +18,7 @@ Live site (static frontend): https://sahan308.github.io/trade-ai/
       services/                 marketData.js, signals.js, health.js — what the UI calls
       analysis/ta.js            Indicators, candlestick patterns, formations (JS twin of backend/app/analysis)
       analysis/smc.js           Smart Money Concepts (JS twin of backend/app/analysis/smc.py)
+      analysis/risk.js          Position sizing (JS twin of backend/app/risk/sizing.py)
       fixtures/demo.js          Isolated, labelled sample data (demo mode only)
     backend/                    FastAPI service (Milestone 1)
       app/main.py               App factory: CORS allowlist, request IDs, security headers, error handlers
@@ -35,6 +36,11 @@ Live site (static frontend): https://sahan308.github.io/trade-ai/
       app/scan.py               Scanner: python -m app.scan [--loop SECONDS] [--profile day|swing|scalp]
       app/api/analysis.py       /api/analysis and /api/patterns
       app/api/signals.py        /api/signals, /api/signals/history, /api/signals/{id}
+      app/risk/sizing.py        Position sizing with fees, slippage, lot/tick rounding, leverage, liquidation estimate, funding
+      app/signals/lifecycle.py  Deterministic lifecycle tracking (conservative same-candle rule)
+      app/signals/tracker.py    Applies lifecycle to stored signals, appends events, raises in-app alerts
+      app/api/risk.py           /api/markets/{symbol}/specs, /api/risk/size
+      app/api/alerts.py         /api/alerts, /api/signals/{id}/events
       app/ratelimit.py          Per-IP rate limit (in-memory, or Redis when TRADEAI_REDIS_URL is set)
       scripts/smoke_live.py     Live check against real public data (used in CI)
       app/errors.py             Consistent JSON error envelope
@@ -137,7 +143,28 @@ All browsers watching the same stream share one upstream connection. The hub rec
 | `GET /api/signals/history?offset&limit&side` | Every stored evaluation, including NO TRADE, newest first, with a total count |
 | `GET /api/signals/{id}` | One signal with all its evidence, assumptions and the strategy-config snapshot |
 
-Signals are created by the scanner, not by API calls.
+Signals are created by the scanner, not by API calls. Each scanner pass also runs lifecycle tracking.
+
+### Risk, lifecycle and alert endpoints
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/markets/{symbol}/specs?market` | Tick size, lot step, minimum quantity and order value, maintenance-margin rate (Futures) |
+| `GET /api/risk/size?balance&risk_pct&entry&stop&side&market&leverage&fee_rate&slippage&hold_hours&symbol` | Position size. With `symbol`, exchange specs and the current funding rate are applied |
+| `GET /api/signals/{id}/events` | Lifecycle events and the simulated outcome |
+| `GET /api/alerts?after_id&limit` | In-app alerts, newest first |
+
+## Risk, lifecycle and alerts (Milestone 5)
+
+- **Position sizing:** size = (balance × risk%) ÷ per-unit loss, where per-unit loss = |entry − stop| plus fees and slippage on entry and exit. The size is rounded **down** to the exchange lot step, so actual risk never exceeds the limit. The result is checked against the minimum quantity and order value.
+- **Futures:** the liquidation estimate uses the simplified isolated-margin formula with the exchange's maintenance-margin rate. It warns if liquidation would come **before** the stop. Leverage changes margin and liquidation distance, not the amount at risk. Funding over the expected holding time is estimated from the current rate.
+- **Lifecycle:** signals move through `active → triggered → target_reached`, ending as `target_reached` (TP3), `stopped`, `expired` (no entry before expiry, or a time exit) or `invalidated` (a close beyond the stop before entry).
+  - Fills assume the worse edge of the entry zone.
+  - Targets are never credited on the entry candle.
+  - If a stop and a target are touched in the same candle, the **stop is assumed first** and the event is flagged.
+- **Outcome:** each stored signal gets a simulated outcome, labelled as simulated: exits in thirds at TP1/2/3, the rest at stop or time exit, and net R after fees and slippage, excluding funding. Measured performance reporting comes in Milestone 6.
+- **Alerts:** in-app only. Alerts are raised for a new LONG/SHORT setup and for every lifecycle event, and the sidebar shows a count of unseen alerts. They're global until accounts exist (Milestone 7). Email and push would be separate, approved work.
+- Events are append-only. A signal's evidence, levels and config snapshot stay immutable; only `lifecycle` and `outcome` change.
 
 ## Signal engine (Milestone 4)
 
@@ -189,7 +216,7 @@ One library, written twice: `backend/app/analysis` (Python, for the API and the 
 | 2. Real market data (public Binance Spot/Futures, WebSockets, freshness, reconciliation) | **Implemented**: browser and backend adapters, backend WebSocket hub, Futures region fallback |
 | 3. Technical analysis indicators and patterns | **Implemented**: 21 indicators, 27 candlestick patterns, swing points and double tops/bottoms, in Python and JS (parity-tested), API endpoints, chart overlays and readings |
 | 4. SMC detections and signal engine | **Implemented**: SMC in Python + JS (parity-tested), signal engine, persistence (migration 0002), scanner, signal API, chart SMC overlay |
-| 5. Risk, lifecycle, alerts | Frontend position-size calculator only |
+| 5. Risk, lifecycle, alerts | **Implemented**: sizing (Python + JS, parity-tested) with exchange specs, lifecycle tracker, events, in-app alerts, migration 0003 |
 | 6. Backtesting and performance | Not started |
 | 7. Accounts and server-side 3-signal trial | Not started |
 | 8. Billing | Out of scope until explicitly requested — no checkout, no payment data |

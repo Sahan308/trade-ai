@@ -74,6 +74,12 @@
       }).filter(Boolean);
     },
 
+    async specs(market, symbol) {
+      const c = coin(symbol), meta = await info({ type: "meta" }), u = meta.universe.find((x) => x.name === c);
+      if (!u) throw Err(`${c} not listed on fallback provider`);
+      return { symbol: c, market: "futures", tick_size: null, step_size: Number((10 ** -(u.szDecimals || 0)).toFixed(u.szDecimals || 0)), min_qty: null, min_notional: 10, mmr: null, source: SOURCE, max_leverage: u.maxLeverage };
+    },
+
     async premium(symbol) {
       const c = coin(symbol), ctx = (await ctxs()).get(c);
       if (!ctx) throw Err(`${c} not listed on fallback provider`);

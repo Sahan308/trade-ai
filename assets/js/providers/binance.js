@@ -97,6 +97,21 @@
       return out;
     },
 
+    /** Contract specs: tick size, lot step, minimums, maintenance margin (futures). Cached for an hour. */
+    async specs(market, symbol) {
+      const m = marketKey(market), sym = toSymbol(symbol), key = `${m}:${m === "spot" ? sym : "*"}`;
+      specCache[key] = specCache[key] && Date.now() - specCache[key].at < 3600e3 ? specCache[key]
+        : { at: Date.now(), p: get(m, m === "spot" ? "/api/v3/exchangeInfo" : "/fapi/v1/exchangeInfo", m === "spot" ? { symbol: sym } : {}) };
+      let info;
+      try { info = await specCache[key].p; } catch (e) { delete specCache[key]; throw e; }
+      const row = info.symbols.find((x) => x.symbol === sym);
+      if (!row) throw new ProviderError(`${sym} is not listed on ${HOSTS[m].name}`);
+      const f = Object.fromEntries(row.filters.map((x) => [x.filterType, x]));
+      const mn = (f.NOTIONAL && f.NOTIONAL.minNotional) || (f.MIN_NOTIONAL && (f.MIN_NOTIONAL.minNotional || f.MIN_NOTIONAL.notional));
+      return { symbol: sym, market: m, tick_size: num(f.PRICE_FILTER.tickSize), step_size: num(f.LOT_SIZE.stepSize), min_qty: num(f.LOT_SIZE.minQty),
+        min_notional: mn ? num(mn) : null, mmr: row.maintMarginPercent ? num(row.maintMarginPercent) / 100 : null, source: HOSTS[m].name };
+    },
+
     /** Futures mark / index price and funding (premiumIndex). */
     async premium(symbol) {
       const r = await get("futures", "/fapi/v1/premiumIndex", { symbol: toSymbol(symbol) });
@@ -126,6 +141,7 @@
     }
   };
 
+  const specCache = {};
   function normTicker(r, market) {
     return {
       symbol: `${r.symbol.replace(/USDT$/, "")}/USDT`, market, last: num(r.lastPrice), change24h: num(r.priceChangePercent),
