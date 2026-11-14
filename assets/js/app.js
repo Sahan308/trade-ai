@@ -637,19 +637,19 @@
       const B = TA.Providers && TA.Providers.binance;
       let sel = "BTCUSDT", board = null, sortKey = "quoteVolume", dir = -1;
       el.innerHTML = `<div id="fdet"></div><section class="card panel"><div class="panel-head"><h2>${TA.icon("chart")}Perpetual futures board</h2><button class="btn btn-sm" id="frefresh">${TA.icon("refresh", "icon-sm")}Refresh</button></div>
-        <p class="muted" style="margin:0 0 12px;font-size:.85rem">Top 30 Binance USDT-M perpetuals by 24h volume. Click a row for open interest, funding history and positioning. These are market readings, not signals or advice.</p>
+        <p class="muted" style="margin:0 0 12px;font-size:.85rem">Top 30 crypto USDT-M perpetuals on Binance by 24h volume (stock and commodity contracts excluded). Click a row for open interest, funding history and positioning. These are market readings, not signals or advice.</p>
         <div id="fboard"></div><p class="muted" id="fmeta" style="font-size:.8rem;margin:10px 0 0"></p></section>`;
       const det = $("#fdet", el), bh = $("#fboard", el);
       if (store.demo || !B) { bh.innerHTML = state("off", "Uses live futures data", "Turn off sample data to load real futures data."); return; }
       const pct = (v, d = 4) => (v == null ? "—" : `${v > 0 ? "+" : ""}${(v * 100).toFixed(d)}%`);
       const fcls = (v) => (v > 0.0001 ? "up" : v < 0 ? "down" : "");
-      const cols = [["symbol", "Contract", ""], ["mark", "Mark", ""], ["change", "24h", ""], ["funding", "Funding", "Rate paid every 8h. Positive = longs pay shorts (crowded long); negative = shorts pay longs."],
-        ["annual", "Funding / yr", "Current funding rate × 3 per day × 365. Rates change every period, so this is illustrative."], ["basis", "Mark vs index", "Perp mark price premium (+) or discount (−) to the spot index."], ["quoteVolume", "24h volume", ""]];
+      const cols = [["symbol", "Contract", ""], ["mark", "Mark", ""], ["change", "24h", ""], ["funding", "Funding", "Rate per funding payment (usually every 8h). Positive = longs pay shorts (crowded long); negative = shorts pay longs."],
+        ["annual", "Funding / yr", "Current rate × payments per day × 365 (most contracts pay every 8h, some every 4h or 1h). Rates change every period, so this is illustrative."], ["basis", "Mark vs index", "Perp mark price premium (+) or discount (−) to the spot index."], ["quoteVolume", "24h volume", ""]];
       const drawBoard = () => {
         const list = board.slice().sort((a, b) => (a[sortKey] > b[sortKey] ? 1 : a[sortKey] < b[sortKey] ? -1 : 0) * dir);
         bh.innerHTML = `<div class="table-wrap"><table><thead><tr>${cols.map(([k, l, tip], i) => `<th class="${i ? "r" : ""}"><button data-fsort="${k}" style="all:unset;cursor:pointer">${tip ? `<span class="term" data-tip="${tip}">${l}</span>` : l}${sortKey === k ? (dir > 0 ? " ▲" : " ▼") : ""}</button></th>`).join("")}</tr></thead><tbody>
           ${list.map((r) => `<tr data-fsym="${r.symbol}" style="cursor:pointer${r.symbol === sel ? ";background:rgba(54,214,231,.07)" : ""}" tabindex="0"><td><b>${r.symbol.replace(/USDT$/, "/USDT")}</b></td><td class="r num">${TA.fmtPrice(r.mark)}</td><td class="r">${TA.chg(r.change)}</td>
-            <td class="r num ${fcls(r.funding)}">${pct(r.funding)}</td><td class="r num ${fcls(r.funding)}">${pct(r.annual, 1)}</td><td class="r num">${pct(r.basis, 3)}</td><td class="r num">${TA.fmtCompact(r.quoteVolume)}</td></tr>`).join("")}</tbody></table></div>`;
+            <td class="r num ${fcls(r.funding)}">${pct(r.funding)}${r.intervalHours !== 8 ? ` <span class="muted" style="font-size:.75rem">/${r.intervalHours}h</span>` : ""}</td><td class="r num ${fcls(r.funding)}">${pct(r.annual, 1)}</td><td class="r num">${pct(r.basis, 3)}</td><td class="r num">${TA.fmtCompact(r.quoteVolume)}</td></tr>`).join("")}</tbody></table></div>`;
       };
       const spark = (vals, color = "var(--accent, #36D6E7)") => {
         const v = vals.filter((x) => x != null); if (v.length < 2) return "";
@@ -682,7 +682,7 @@
       const loadBoard = async () => {
         try {
           const all = await B.futuresBoard();
-          board = all.sort((a, b) => b.quoteVolume - a.quoteVolume).slice(0, 30).map((r) => ({ ...r, annual: r.funding * 3 * 365 }));
+          board = all.sort((a, b) => b.quoteVolume - a.quoteVolume).slice(0, 30).map((r) => ({ ...r, annual: r.funding * (24 / r.intervalHours) * 365 }));
           if (!el.isConnected) return;
           drawBoard(); $("#fmeta", el).innerHTML = `Source: Binance USDT-M Futures · updated ${ageHtml(Date.now())}`;
         } catch (e) { bh.innerHTML = state("error", "Couldn't load futures data", TA.esc(e.message || String(e)) + (e.kind === "region" ? " Binance Futures isn't available from your network or region." : ""), `<button class="btn btn-sm" data-act="retry">Try again</button>`); }

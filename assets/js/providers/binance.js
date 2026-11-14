@@ -124,9 +124,13 @@
 
     /** All USDT-M perpetuals: mark/index price, funding, plus 24h stats (2 requests). */
     async futuresBoard() {
-      const [prem, tick] = await Promise.all([get("futures", "/fapi/v1/premiumIndex", {}), get("futures", "/fapi/v1/ticker/24hr", {})]);
+      const [prem, tick, info, fi] = await Promise.all([get("futures", "/fapi/v1/premiumIndex", {}), get("futures", "/fapi/v1/ticker/24hr", {}),
+        get("futures", "/fapi/v1/exchangeInfo", {}), get("futures", "/fapi/v1/fundingInfo", {}).catch(() => [])]);
       const t = Object.fromEntries(tick.map((x) => [x.symbol, x]));
-      return prem.filter((r) => r.symbol.endsWith("USDT") && t[r.symbol]).map((r) => ({
+      const crypto = new Set(info.symbols.filter((x) => x.contractType === "PERPETUAL" && x.status === "TRADING" && (!x.underlyingType || x.underlyingType === "COIN")).map((x) => x.symbol));
+      const hours = Object.fromEntries(fi.map((x) => [x.symbol, +x.fundingIntervalHours || 8]));
+      return prem.filter((r) => r.symbol.endsWith("USDT") && t[r.symbol] && crypto.has(r.symbol)).map((r) => ({
+        intervalHours: hours[r.symbol] || 8,
         symbol: r.symbol, mark: num(r.markPrice), index: num(r.indexPrice), funding: num(r.lastFundingRate), nextFunding: +r.nextFundingTime,
         basis: num(r.indexPrice) ? (num(r.markPrice) - num(r.indexPrice)) / num(r.indexPrice) : null,
         change: num(t[r.symbol].priceChangePercent), quoteVolume: num(t[r.symbol].quoteVolume) }));
