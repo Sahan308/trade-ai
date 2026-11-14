@@ -3,6 +3,8 @@ on:
   workflow_dispatch:
     inputs:
       days: { description: "days of history", default: "1095" }
+permissions:
+  contents: write
 jobs:
   fetch:
     runs-on: ubuntu-latest
@@ -13,5 +15,12 @@ jobs:
         with: { python-version: "3.12" }
       - run: pip install -r requirements.txt
       - run: PYTHONPATH=. python scripts/fetch_history.py --out ../research-data --days ${{ inputs.days }} BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT ADAUSDT LINKUSDT AVAXUSDT
-      - uses: actions/upload-artifact@v4
-        with: { name: research-data, path: research-data, retention-days: 7 }
+      - name: Publish to the research-data branch (orphan; never merged into main)
+        working-directory: .
+        run: |
+          cd research-data
+          git init -q -b research-data
+          git config user.name "github-actions"; git config user.email "actions@users.noreply.github.com"
+          printf "Public Binance spot candles for TRADE-AI strategy research. Not used by the website.\n" > README.md
+          git add -A && git commit -qm "Research data $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" research-data
