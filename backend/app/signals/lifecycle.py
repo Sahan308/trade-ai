@@ -37,7 +37,9 @@ def _ms(iso: str) -> float:
     return datetime.fromisoformat(iso).timestamp() * 1000
 
 
-def track(sig: dict, series: dict, now: datetime, max_hold_bars: int | None = None) -> dict:
+def track(sig: dict, series: dict, now: datetime, max_hold_bars: int | None = None, resolver=None) -> dict:
+    """resolver(candle_open_ms, step_ms, side, stop, targets) → "target_first" | "stop_first" | None.
+    Used only when the stop and a new target are touched in the same candle, e.g. by replaying 1-minute data."""
     side = sig["side"]
     if side not in ("LONG", "SHORT"):
         return {"lifecycle": sig.get("lifecycle", "no_trade"), "terminal": True, "events": [], "outcome": None}
@@ -78,9 +80,18 @@ def track(sig: dict, series: dict, now: datetime, max_hold_bars: int | None = No
         reach = sum(1 for tp in tps if (h >= tp if long_ else l <= tp))
         new_tp = reach > hit
         if stop_hit:
+            order = resolver(t, step, side, stop, tps[hit:reach]) if (new_tp and resolver) else None
+            if order == "target_first":
+                while hit < reach:
+                    hit += 1
+                    ev(f"tp{hit}_hit", i, tps[hit - 1], resolved_with="1m candles")
+                if hit == 3:
+                    state, exit_kind = "closed", "tp3"; break
             state, exit_price, exit_kind = "stopped", stop, "stop"
-            ev("stopped", i, stop, ambiguous_same_candle=bool(new_tp), after_targets=hit,
-               rule="stop assumed first when stop and target touch in the same candle" if new_tp else "stop touched")
+            ambiguous = bool(new_tp) and order is None
+            ev("stopped", i, stop, ambiguous_same_candle=ambiguous, after_targets=hit,
+               rule=("stop assumed first when stop and target touch in the same candle" if ambiguous
+                     else "order resolved with 1m candles" if order else "stop touched"))
             break
         while hit < reach:
             hit += 1

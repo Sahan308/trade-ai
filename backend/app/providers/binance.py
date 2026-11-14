@@ -225,3 +225,28 @@ def _binance_specs(self, market: MarketType, symbol: str) -> dict:
 
 
 BinanceProvider.specs = _binance_specs
+
+
+# ---------------- Historical candles (paginated) ----------------
+def _binance_history(self, market: MarketType, symbol: str, interval: str, start_ms: int, end_ms: int) -> CandleSeries:
+    """All candles with open time in [start_ms, end_ms), fetched 1000 at a time oldest → newest."""
+    sym = normalize_symbol(symbol)
+    if interval not in BINANCE_INTERVALS:
+        raise ProviderError("bad_request", f"Unsupported interval: {interval}")
+    path = "/api/v3/klines" if market == MarketType.spot else "/fapi/v1/klines"
+    rows, cursor = [], int(start_ms)
+    for _ in range(200):                                   # hard cap: 200k candles
+        page = self._get(market, path, {"symbol": sym, "interval": BINANCE_INTERVALS[interval], "startTime": cursor,
+                                        "endTime": int(end_ms) - 1, "limit": 1000})
+        if not isinstance(page, list) or not page:
+            break
+        rows.extend(page)
+        nxt = int(page[-1][0]) + 1
+        if len(page) < 1000 or nxt >= end_ms:
+            break
+        cursor = nxt
+    candles, dropped, gaps = validate_klines(rows, interval)
+    return CandleSeries(candles, dropped, gaps, SOURCES[market], datetime.now(timezone.utc))
+
+
+BinanceProvider.history = _binance_history

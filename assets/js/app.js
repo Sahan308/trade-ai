@@ -411,15 +411,82 @@
 
     chart(el) { el.innerHTML = `<div class="chart-wrap">${chartPanel("Advanced chart", { withReadings: true })}</div>`; loadChart(el.querySelector(".chart-wrap")); },
 
-    history(el) {
-      el.innerHTML = `<div class="grid-dash">
-        <section class="card panel span-6 measured" style="border-left-width:3px"><div class="panel-head"><h2>${TA.icon("database")}Measured performance</h2><span class="badge badge-info">Tracked outcomes only</span></div>
-          ${state("empty", "No resolved signals yet", "Win rate, average R and outcome breakdowns appear only once real signals are recorded and resolved. Nothing is estimated here.")}</section>
-        <section class="card panel span-6"><div class="panel-head"><h2>${TA.icon("flask")}Unvalidated estimates</h2><span class="badge badge-demo">Not measured</span></div>
-          <p style="font-size:.9rem">Setup scores are heuristics. They'll stay in this separate column — never mixed into measured results — until there's enough history to check them.</p></section>
-        <section class="card panel span-12"><div class="panel-head"><h2>${TA.icon("history")}Signal log</h2></div>
-          <div class="table-wrap"><table><thead><tr><th>Time</th><th>Symbol</th><th>Direction</th><th>Lifecycle</th><th class="r">Result</th></tr></thead>
-          <tbody><tr><td colspan="5">${state("off", "History backend not connected", "Every signal and its outcome will be listed here, losses included.")}</td></tr></tbody></table></div></section></div>`;
+    async history(el) {
+      el.innerHTML = `<div class="panel-head" style="margin:0"><div class="seg" role="tablist" aria-label="Result type">
+          <button role="tab" data-kind="prospective" aria-selected="true">Live signals (prospective)</button>
+          <button role="tab" data-kind="backtest" aria-selected="false">Backtests</button>
+          <button role="tab" data-kind="paper" aria-selected="false">Paper</button></div></div>
+        <div id="perf"></div>
+        <section class="card panel"><h2 style="font-size:1rem">${TA.icon("info")}How results are measured</h2>
+          <ul style="margin:0;padding-left:18px;font-size:.88rem;color:var(--tx-2);display:grid;gap:4px">
+            <li><b>Live signals, backtests and paper trading are kept separate.</b> They are never added together.</li>
+            <li>Fills assume the worse edge of the entry zone. One third exits at each target, and the rest at the stop or a time exit. Fees and slippage are included. If a stop and a target are touched in the same candle, the stop is assumed first unless 1-minute data shows otherwise.</li>
+            <li>Backtests use only data available at each decision. They're split by date into development, validation and an untouched out-of-sample period, and they also run walk-forward tests.</li>
+            <li>No accuracy rate is claimed. Win rates are always shown with the number of trades, and fewer than 30 trades is flagged as too few.</li>
+          </ul></section>`;
+      const host = $("#perf", el);
+      const tabs = el.querySelectorAll("[data-kind]");
+      tabs.forEach((b) => b.addEventListener("click", () => { tabs.forEach((x) => x.setAttribute("aria-selected", x === b)); show(b.dataset.kind); }));
+      const pct = (v) => (v == null ? "—" : `${(v * 100).toFixed(1)}%`), r2 = (v) => (v == null ? "—" : `${v >= 0 ? "+" : ""}${Number(v).toFixed(2)}R`);
+      const card = (k, v, tip) => `<div class="result"><small>${tip ? term(k, tip) : k}</small><div>${v}</div></div>`;
+      const metricCards = (m) => `<div class="result-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+          ${card("Trades", m.trades)}${card("Win rate", m.trades ? `${pct(m.win_rate)} <span class="muted" style="font-size:.8rem">(${m.wins} of ${m.trades})</span>` : "—", "Share of trades with a positive net result. Always read it with the trade count.")}
+          ${card("Profit factor", m.profit_factor == null ? "—" : m.profit_factor.toFixed(2), "Total won ÷ total lost, in R.")}
+          ${card("Expectancy", r2(m.expectancy_r), "Average net result per trade, in multiples of the amount risked (R).")}
+          ${card("Net P&L", m.net_pnl_pct == null ? "—" : `${m.net_pnl_pct >= 0 ? "+" : ""}${m.net_pnl_pct.toFixed(2)}%`, `Compounded, risking ${m.risk_per_trade_pct}% per trade, after fees and slippage.`)}
+          ${card("Max drawdown", m.max_drawdown_pct == null ? "—" : `${m.max_drawdown_pct.toFixed(2)}%`, "Largest peak-to-trough fall of the equity curve.")}
+          ${card("Avg win / loss", `${r2(m.avg_win_r)} / ${r2(m.avg_loss_r)}`)}${card("Worst losing streak", m.max_consecutive_losses ?? "—")}
+        </div>${(m.warnings || []).map((w) => `<p class="down" style="font-size:.86rem;margin:10px 0 0">${TA.icon("alert", "icon-sm")} ${TA.esc(w)}</p>`).join("")}`;
+      const curve = (pts) => {
+        if (!pts || pts.length < 2) return "";
+        const ys = pts.map((p) => p.equity), lo = Math.min(1, ...ys), hi = Math.max(1, ...ys), W = 800, H2 = 160;
+        const y = (v) => 10 + ((hi - v) / (hi - lo || 1)) * (H2 - 20), x = (i) => (i / (pts.length - 1)) * W;
+        return `<div class="chart-area" style="height:170px;margin-top:12px"><svg viewBox="0 0 ${W} ${H2}" preserveAspectRatio="none" role="img" aria-label="Equity curve"><line x1="0" x2="${W}" y1="${y(1)}" y2="${y(1)}" stroke="var(--tx-3)" stroke-dasharray="4 4"/><polyline points="${pts.map((p, i) => `${x(i).toFixed(1)},${y(p.equity).toFixed(1)}`).join(" ")}" fill="none" stroke="var(--accent)" stroke-width="1.6"/></svg></div>`;
+      };
+      const breakdown = (title, g) => !g || !Object.keys(g).length ? "" : `<h3 style="font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--tx-3);margin:16px 0 8px">${title}</h3><div class="table-wrap"><table><thead><tr><th>Group</th><th class="r">Trades</th><th class="r">Win rate</th><th class="r">Total</th><th class="r">Average</th></tr></thead><tbody>${Object.entries(g).map(([k, v]) => `<tr><td>${TA.esc(k)}</td><td class="r num">${v.trades}</td><td class="r num">${pct(v.win_rate)}</td><td class="r num">${r2(v.total_r)}</td><td class="r num">${r2(v.avg_r)}</td></tr>`).join("")}</tbody></table></div>`;
+      const offline = () => state("off", "Results come from the TRADE-AI server", "Live signals are tracked and backtests are run on the server, so measured results appear here once the backend is hosted and <code>api.backendBaseUrl</code> is set. Nothing is estimated in the meantime.");
+
+      async function show(kind) {
+        host.innerHTML = `<div class="card panel"><div class="skeleton" style="height:120px"></div></div>`;
+        if (kind === "paper") { host.innerHTML = `<section class="card">${state("soon", "Paper trading isn't available yet", "When it's added, paper results will be reported here on their own, separate from live signals and backtests.")}</section>`; return; }
+        if (kind === "prospective") {
+          const [p, hist] = await Promise.all([TA.Signals.getPerformance("prospective"), TA.Signals.getHistory()]);
+          if (!host.isConnected) return;
+          if (p.status !== "ok") { host.innerHTML = `<section class="card">${p.status === "disconnected" ? offline() : state("error", "Couldn't load results", TA.esc(p.error), retryBtn)}</section>`; return; }
+          const d = p.data, m = d.metrics;
+          host.innerHTML = `<section class="card panel"><div class="panel-head"><h2>${TA.icon("database")}Live signals: measured results</h2><span class="badge badge-info">Prospective</span></div>
+              <p class="muted" style="font-size:.84rem;margin:0 0 12px">${TA.esc(d.note)} ${d.open_or_unfilled} signal(s) still open or waiting for entry aren't counted.</p>
+              ${metricCards(m)}${curve(m.equity_curve)}${breakdown("By side", m.by_side)}${breakdown("By exit", m.by_exit)}${breakdown("By month", m.by_month)}</section>
+            <section class="card panel"><div class="panel-head"><h2>${TA.icon("history")}Signal log</h2><span class="muted" style="font-size:.82rem">${hist.status === "ok" ? `${hist.data.total} evaluations, including NO TRADE` : ""}</span></div>
+              ${hist.status === "ok" && hist.data.items.length ? `<div class="table-wrap"><table><thead><tr><th>Time</th><th>Symbol</th><th>Result</th><th>Lifecycle</th><th class="r">Net result</th></tr></thead><tbody>${hist.data.items.map((x) => `<tr><td>${TA.fmtTime(x.generated_at)}</td><td>${TA.esc(x.symbol)} · ${x.timeframe}</td><td>${TA.dirBadge(x.side)}</td><td>${TA.lifeLabel[x.lifecycle] || x.lifecycle}</td><td class="r num">${x.outcome ? r2(x.outcome.net_r) : "—"}</td></tr>`).join("")}</tbody></table></div>` : state("empty", "No signals recorded yet", "The scanner records every evaluation here, NO TRADE included.")}</section>`;
+          return;
+        }
+        const r = await TA.Signals.getBacktests();
+        if (!host.isConnected) return;
+        if (r.status !== "ok") { host.innerHTML = `<section class="card">${r.status === "disconnected" ? offline() : state("error", "Couldn't load backtests", TA.esc(r.error), retryBtn)}</section>`; return; }
+        if (!r.data.runs.length) { host.innerHTML = `<section class="card">${state("empty", "No backtests yet", "Run one on the server: <code>python -m app.backtest --symbol BTCUSDT --market spot --days 180</code>")}</section>`; return; }
+        host.innerHTML = `<section class="card panel"><div class="panel-head"><h2>${TA.icon("flask")}Backtest runs</h2><span class="badge badge-demo">Historical simulation</span></div>
+          <div class="table-wrap"><table><thead><tr><th>Run</th><th>Period</th><th class="r">Trades</th><th class="r">Expectancy</th><th class="r">Out-of-sample</th><th class="r">Walk-forward</th><th></th></tr></thead><tbody>
+          ${r.data.runs.map((x) => `<tr><td>${TA.esc(x.symbol)} · ${x.market} · ${x.timeframe}<br/><span class="muted" style="font-size:.78rem">${TA.esc(x.strategy)}</span></td><td>${x.data_from.slice(0, 10)} → ${x.data_to.slice(0, 10)}</td><td class="r num">${x.trades}</td><td class="r num">${r2(x.expectancy_r)}</td><td class="r num">${x.oos_trades} · ${r2(x.oos_expectancy_r)}</td><td class="r num">${x.walk_forward_trades} · ${r2(x.walk_forward_expectancy_r)}</td><td><button class="btn btn-sm" data-run="${x.id}">Details</button></td></tr>`).join("")}</tbody></table></div><div id="runDetail"></div></section>`;
+        host.querySelectorAll("[data-run]").forEach((b) => b.addEventListener("click", async () => {
+          const d = await TA.Signals.getBacktest(b.dataset.run), box = $("#runDetail", host);
+          if (d.status !== "ok") { box.innerHTML = state("error", "Couldn't load this run", TA.esc(d.error)); return; }
+          const x = d.data, sp = x.splits, wf = x.walk_forward;
+          box.innerHTML = `<h3 style="margin:18px 0 6px">${TA.esc(x.symbol)} · ${x.timeframe} · ${x.bars} candles</h3>
+            <p class="muted" style="font-size:.82rem;margin:0 0 10px">${TA.esc(x.disclaimer)} Assumptions: fee ${((x.assumptions.fee_rate_per_side || 0) * 100).toFixed(3)}% and slippage ${(x.assumptions.slippage_per_side * 100).toFixed(3)}% per side, funding ${(x.assumptions.funding_rate_8h * 100).toFixed(4)}%/8h, latency ${x.assumptions.latency_bars} candle(s), same-candle rule: ${TA.esc(x.assumptions.same_candle_rule)}.</p>
+            ${metricCards(x.full_period.metrics)}${curve(x.full_period.metrics.equity_curve)}
+            <h3 style="font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--tx-3);margin:16px 0 8px">Chronological periods</h3>
+            <div class="table-wrap"><table><thead><tr><th>Period</th><th>Dates</th><th class="r">Trades</th><th class="r">Win rate</th><th class="r">Expectancy</th><th class="r">Total</th></tr></thead><tbody>
+              ${["development", "validation", "out_of_sample"].map((k) => { const m = sp[k].metrics; return `<tr><td>${k.replace(/_/g, "-")}${k === "out_of_sample" ? ' <span class="badge badge-info">untouched</span>' : ""}</td><td>${(sp[k].from || "").slice(0, 10)} → ${(sp[k].to || "").slice(0, 10)}</td><td class="r num">${m.trades}</td><td class="r num">${pct(m.win_rate)}</td><td class="r num">${r2(m.expectancy_r)}</td><td class="r num">${r2(m.total_r)}</td></tr>`; }).join("")}</tbody></table></div>
+            <h3 style="font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--tx-3);margin:16px 0 8px">Walk-forward (test windows only)</h3>
+            <div class="table-wrap"><table><thead><tr><th>Test window</th><th class="r">Chosen min score / R:R</th><th class="r">Trades</th><th class="r">Total</th></tr></thead><tbody>
+              ${wf.folds.map((f) => `<tr><td>${f.test_from.slice(0, 10)} → ${f.test_to.slice(0, 10)}</td><td class="r num">${f.chosen_min_score} / ${f.chosen_min_rr}</td><td class="r num">${f.test_trades}</td><td class="r num">${r2(f.test_total_r)}</td></tr>`).join("")}</tbody></table></div>
+            <p style="font-size:.86rem">Walk-forward combined: ${wf.out_of_sample_metrics.trades} trades, expectancy ${r2(wf.out_of_sample_metrics.expectancy_r)}.</p>
+            ${breakdown("By side", x.full_period.metrics.by_side)}${breakdown("By exit", x.full_period.metrics.by_exit)}${breakdown("By regime", x.full_period.metrics.by_regime)}`;
+          box.scrollIntoView({ behavior: TA.reducedMotion() ? "auto" : "smooth", block: "start" });
+        }));
+      }
+      show("prospective");
     },
 
     risk(el) {

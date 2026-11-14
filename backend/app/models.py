@@ -90,3 +90,20 @@ def _signals_are_immutable(mapper, connection, target):
     blocked = changed & IMMUTABLE_SIGNAL_FIELDS
     if blocked:
         raise ValueError(f"Signals are immutable; attempted to change {sorted(blocked)}")
+
+
+class BacktestRun(Base):
+    """Stored backtest. Backtests are never mixed with paper or prospective (live) results."""
+    __tablename__ = "backtest_runs"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="backtest")
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False)
+    market: Mapped[str] = mapped_column(String(16), nullable=False)
+    timeframe: Mapped[str] = mapped_column(String(8), nullable=False)
+    strategy: Mapped[str] = mapped_column(String(64), nullable=False)
+    strategy_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    config_hash: Mapped[str] = mapped_column(String(32), nullable=False)
+    data_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    data_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    result: Mapped[dict] = mapped_column(JSON, nullable=False)

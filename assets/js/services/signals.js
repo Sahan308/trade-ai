@@ -66,6 +66,19 @@
       } catch (e) { return { status: "error", error: e.message, data: null }; }
     },
 
+    async api(path) {
+      if (!backend()) return { status: "disconnected", data: null };
+      try {
+        const res = await fetch(`${backend()}${path}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return { status: "ok", data: await res.json() };
+      } catch (e) { return { status: "error", error: e.message, data: null }; }
+    },
+    getPerformance(kind = "prospective") { return this.api(`/api/performance?kind=${kind}`); },
+    getBacktests() { return this.api("/api/backtests"); },
+    getBacktest(id) { return this.api(`/api/backtests/${encodeURIComponent(id)}`); },
+    getHistory(offset = 0) { return this.api(`/api/signals/history?limit=50&offset=${offset}`); },
+
     async getUsage({ demo } = {}) {
       const limit = window.TRADE_AI_CONFIG.pricing.trialSignals;
       if (demo) return { status: "ok", source: "demo", data: { used: TA.DEMO.trialUsed, limit } };

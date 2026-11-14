@@ -41,6 +41,9 @@ Live site (static frontend): https://sahan308.github.io/trade-ai/
       app/signals/tracker.py    Applies lifecycle to stored signals, appends events, raises in-app alerts
       app/api/risk.py           /api/markets/{symbol}/specs, /api/risk/size
       app/api/alerts.py         /api/alerts, /api/signals/{id}/events
+      app/backtest/core.py      Backtest engine, metrics, chronological splits, walk-forward
+      app/backtest/__main__.py  CLI: python -m app.backtest --symbol BTCUSDT --market spot --days 180
+      app/api/performance.py    /api/performance, /api/backtests, /api/backtests/{id}
       app/ratelimit.py          Per-IP rate limit (in-memory, or Redis when TRADEAI_REDIS_URL is set)
       scripts/smoke_live.py     Live check against real public data (used in CI)
       app/errors.py             Consistent JSON error envelope
@@ -154,6 +157,31 @@ Signals are created by the scanner, not by API calls. Each scanner pass also run
 | `GET /api/signals/{id}/events` | Lifecycle events and the simulated outcome |
 | `GET /api/alerts?after_id&limit` | In-app alerts, newest first |
 
+### Performance endpoints
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/performance?kind=prospective\|backtest\|paper&risk_pct` | Measured results for one kind only. Kinds are never mixed. `paper` reports "not available" |
+| `GET /api/backtests` | Stored backtest runs (summaries) |
+| `GET /api/backtests/{id}` | Full run: assumptions, full period, chronological splits, walk-forward folds, trades, equity curve |
+
+## Backtesting and performance (Milestone 6)
+
+Run a backtest on real history (stored in the database and shown on the History page):
+
+    cd backend && python -m app.backtest --symbol BTCUSDT --market spot --days 180
+    # options: --market futures --profile swing --latency 1 --funding 0.0001 --risk 1 --no-1m --no-store
+
+- **No look-ahead or repainting:** at each closed candle the engine is called on data that ends at that candle. A test checks that adding future data never changes earlier decisions. Entries are only possible on later candles, and `--latency` adds more delay.
+- **Fills and exits:** the same lifecycle rules as live signals (worse-edge fills, thirds at TP1/2/3, time exit). Same-candle stop/target collisions are replayed on **1-minute candles**. If the order is still unclear, the stop is assumed first. Collisions are counted in the results.
+- **Costs:** fee and slippage per side from the strategy config, plus Futures funding at an assumed rate per 8h (default 0.01%) for the time held.
+- **One position at a time.** Trades still open when the data ends aren't counted. Each period below is simulated on its own, so trade counts across periods can differ slightly from the full-period run.
+- **Chronological splits:** 60% development, 20% validation, 20% **out-of-sample** (untouched; nothing tuned on it).
+- **Walk-forward:** on each rolling training window, the minimum score (55/60/65/70) and minimum reward:risk (1.5/2/2.5) are chosen by expectancy, then applied unchanged to the next unseen test window. Only test windows are reported.
+- **Metrics:** trades, wins/losses, win rate (always with the count), profit factor, expectancy (R), average win/loss, total R, net P&L % (compounded at a fixed risk per trade), max drawdown, worst losing streak, breakdowns by side, exit, regime and month. Fewer than 30 trades shows a "too few trades" warning.
+- **Kinds are kept separate:** backtests are stored in `backtest_runs` (migration 0004). Prospective results are computed only from live signals that have finished their lifecycle. Paper trading isn't implemented.
+- **No accuracy claims:** nothing in the app states an accuracy rate. Results are shown as measured, with their sample size and assumptions.
+
 ## Risk, lifecycle and alerts (Milestone 5)
 
 - **Position sizing:** size = (balance × risk%) ÷ per-unit loss, where per-unit loss = |entry − stop| plus fees and slippage on entry and exit. The size is rounded **down** to the exchange lot step, so actual risk never exceeds the limit. The result is checked against the minimum quantity and order value.
@@ -217,7 +245,7 @@ One library, written twice: `backend/app/analysis` (Python, for the API and the 
 | 3. Technical analysis indicators and patterns | **Implemented**: 21 indicators, 27 candlestick patterns, swing points and double tops/bottoms, in Python and JS (parity-tested), API endpoints, chart overlays and readings |
 | 4. SMC detections and signal engine | **Implemented**: SMC in Python + JS (parity-tested), signal engine, persistence (migration 0002), scanner, signal API, chart SMC overlay |
 | 5. Risk, lifecycle, alerts | **Implemented**: sizing (Python + JS, parity-tested) with exchange specs, lifecycle tracker, events, in-app alerts, migration 0003 |
-| 6. Backtesting and performance | Not started |
+| 6. Backtesting and performance | **Implemented**: backtester (no look-ahead, 1m collision resolver, costs, funding, latency), splits, walk-forward, metrics, storage, CLI, API, History page |
 | 7. Accounts and server-side 3-signal trial | Not started |
 | 8. Billing | Out of scope until explicitly requested — no checkout, no payment data |
 

@@ -85,6 +85,22 @@ class HyperliquidProvider:
         candles, dropped, gaps = validate_klines(kl, interval)
         return CandleSeries(candles, dropped, gaps, SOURCE, _now())
 
+    def history(self, market: MarketType, symbol: str, interval: str, start_ms: int, end_ms: int) -> CandleSeries:
+        self._require_futures(market)
+        rows, cursor = [], int(start_ms)
+        for _ in range(100):
+            page = self._info({"type": "candleSnapshot", "req": {"coin": to_coin(symbol), "interval": INTERVALS[interval],
+                                                                 "startTime": cursor, "endTime": int(end_ms) - 1}})
+            if not isinstance(page, list) or not page:
+                break
+            rows.extend([[r.get("t"), r.get("o"), r.get("h"), r.get("l"), r.get("c"), r.get("v")] for r in page if isinstance(r, dict)])
+            nxt = int(page[-1]["t"]) + 1
+            if nxt >= end_ms or len(page) < 500:
+                break
+            cursor = nxt
+        candles, dropped, gaps = validate_klines(rows, interval)
+        return CandleSeries(candles, dropped, gaps, SOURCE, _now())
+
     def ticker(self, market: MarketType, symbol: str) -> Ticker:
         self._require_futures(market)
         coin = to_coin(symbol)

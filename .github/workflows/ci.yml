@@ -40,6 +40,9 @@ jobs:
           uvicorn app.main:app --port 8000 &
           sleep 4
           python scripts/smoke_live.py
+          echo "--- backtest on real data: BTCUSDT spot 1H, 90 days ---"
+          TRADEAI_DATABASE_URL=sqlite:///./bt.db alembic upgrade head
+          TRADEAI_DATABASE_URL=sqlite:///./bt.db python -m app.backtest --symbol BTCUSDT --market spot --days 90
           echo "--- scanner on real data (SQLite) ---"
           export TRADEAI_DATABASE_URL=sqlite:///./scan.db
           alembic upgrade head
