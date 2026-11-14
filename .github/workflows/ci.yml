@@ -40,6 +40,18 @@ jobs:
           uvicorn app.main:app --port 8000 &
           sleep 4
           python scripts/smoke_live.py
+          echo "--- scanner on real data (SQLite) ---"
+          export TRADEAI_DATABASE_URL=sqlite:///./scan.db
+          alembic upgrade head
+          python -m app.scan
+          curl -fsS "http://127.0.0.1:8000/api/signals/history?limit=5" > /dev/null || true
+          python - <<'PY'
+          import sqlite3, json
+          con = sqlite3.connect("scan.db")
+          for side, payload in con.execute("select side, payload from signals"):
+              p = json.loads(payload)
+              print(side, p["symbol"], p["market"], "|", p["explanation"][:220])
+          PY
 
   frontend:
     runs-on: ubuntu-latest
