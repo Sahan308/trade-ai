@@ -174,3 +174,13 @@ h3 { font-size: 1.15rem; font-weight: 600; }
 .locked-levels .icon-sm { vertical-align: -2px; }
 .auth-form { display: grid; gap: 12px; max-width: 380px; }
 .auth-form .err { color: var(--neg, #F16B75); font-size: .85rem; min-height: 1em; }
+
+/* Themed scrollbars (page, tables, modals) */
+html { color-scheme: dark; scrollbar-color: #2A3A47 #0B1016; scrollbar-width: thin; }
+* { scrollbar-color: #2A3A47 transparent; scrollbar-width: thin; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #0B1016; }
+::-webkit-scrollbar-thumb { background: #22313C; border-radius: 10px; border: 2px solid #0B1016; }
+::-webkit-scrollbar-thumb:hover { background: #36D6E7; }
+::-webkit-scrollbar-corner { background: #0B1016; }
+::-webkit-scrollbar-button { display: none; height: 0; width: 0; }
