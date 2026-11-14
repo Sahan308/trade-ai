@@ -23,7 +23,7 @@
     { id: "signals", label: "Signals", icon: "zap", ready: true },
     { id: "chart", label: "Advanced chart", icon: "candles", ready: true },
     { id: "scanner", label: "Market scanner", icon: "radar", ready: true },
-    { id: "patterns", label: "Pattern & SMC", icon: "layers" },
+    { id: "patterns", label: "Pattern & SMC", icon: "layers", ready: true },
     { id: "futures", label: "Futures intelligence", icon: "chart" },
     { group: "Performance & risk" },
     { id: "history", label: "Signal history", icon: "history", ready: true },
@@ -584,6 +584,55 @@
       every(30000, load);
     },
 
+    async patterns(el) {
+      const W = C.watchlist; let si = 0, tf = "1H";
+      el.innerHTML = `<section class="card panel"><div class="panel-head" style="flex-wrap:wrap;gap:10px"><h2>${TA.icon("layers")}Pattern &amp; SMC analysis</h2>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><select id="psym" aria-label="Symbol">${W.map((w, i) => `<option value="${i}">${TA.esc(w.symbol)} · ${w.market}</option>`).join("")}</select>
+          <div class="seg" role="group" aria-label="Timeframe">${["15m", "1H", "4H", "1D"].map((x) => `<button data-ptf="${x}" aria-pressed="${x === tf}">${x}</button>`).join("")}</div></div></div>
+        <p class="muted" style="margin:0;font-size:.85rem">Smart-money-concept structure and classic patterns detected on closed candles, each with where and when it formed. These are descriptions of the chart, not predictions or advice.</p></section>
+        <div id="pout"></div>`;
+      const out = $("#pout", el);
+      const sec = (title, tip, body) => `<section class="card panel"><h2 style="font-size:1rem">${tip ? term(title, tip) : title}</h2>${body}</section>`;
+      const tbl = (head, rows, empty) => rows.length ? `<div class="table-wrap"><table><thead><tr>${head.map((h, i) => `<th class="${i && /Price|Low|High|Level|Distance/.test(h) ? "r" : ""}">${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>` : `<p class="muted" style="margin:0;font-size:.88rem">${empty}</p>`;
+      const bias = (b) => b === "bullish" ? `<span class="badge badge-long">Bullish</span>` : b === "bearish" ? `<span class="badge badge-short">Bearish</span>` : `<span class="badge badge-none">${TA.esc(b || "—")}</span>`;
+      async function load() {
+        if (store.demo) { out.innerHTML = `<section class="card">${state("off", "Uses live market data", "Turn off sample data to analyse real pairs.")}</section>`; return; }
+        out.innerHTML = `<div class="skeleton" style="height:320px;border-radius:18px"></div>`;
+        const w = W[si], r = await TA.MarketData.getCandles(w.symbol, w.market, tf, { limit: 300 });
+        if (!el.isConnected) return;
+        if (r.status !== "ok") { out.innerHTML = `<section class="card">${fromResult(r, "Candles")}</section>`; return; }
+        const cs = r.data.slice(0, -1), t = cs.map((x) => x.t), o = cs.map((x) => x.o), h = cs.map((x) => x.h), l = cs.map((x) => x.l), c = cs.map((x) => x.c);
+        const px = c[c.length - 1], n = cs.length, when = (i) => (i == null || !t[i] ? "—" : TA.fmtTime(t[i]));
+        const dist = (lo, hi) => { const m = px > hi ? (px - hi) / px : px < lo ? (lo - px) / px : 0; return m === 0 ? "Price inside" : `${px > hi ? "−" : "+"}${(m * 100).toFixed(2)}%`; };
+        const S = TA.SMC.analyzeSmc(o, h, l, c), A = TA.Analysis;
+        const pd = S.premium_discount, ev = S.structure.slice(-6).reverse();
+        const live = (z) => !["filled", "broken", "mitigated"].includes(z.status);
+        const obs = S.order_blocks.filter(live).slice(-8).reverse(), fvgs = S.fvgs.filter(live).slice(-8).reverse();
+        const liq = S.liquidity.levels.filter((x) => x.status === "resting"), above = liq.filter((x) => x.level > px).sort((a, b) => a.level - b.level).slice(0, 4), below = liq.filter((x) => x.level < px).sort((a, b) => b.level - a.level).slice(0, 4);
+        const sweeps = S.liquidity.levels.filter((x) => x.status === "swept").slice(-5).reverse();
+        const pats = A.detectCandlestickPatterns(o, h, l, c).filter((p) => p.index >= n - 12).reverse();
+        const forms = A.doubleTopsBottoms(h, l, c).slice(-4).reverse();
+        out.innerHTML = `<div class="grid-dash">
+          <section class="card panel span-12"><div class="result-grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+            <div class="result"><small>Last price</small><div>${TA.fmtPrice(px)}</div></div>
+            <div class="result"><small>${term("Structure", "Direction of the latest break of structure (BOS) or change of character (CHOCH).")}</small><div>${bias(S.trend)}</div></div>
+            <div class="result"><small>${term("Premium / discount", "Where price sits in the recent swing range. Above the midpoint = premium, below = discount.")}</small><div>${pd ? `${pd.zone[0].toUpperCase() + pd.zone.slice(1)} · ${(pd.position * 100).toFixed(0)}%` : "—"}</div></div>
+            <div class="result"><small>Candles analysed</small><div>${n} × ${tf}</div></div></div>
+            <p class="muted" style="margin:10px 0 0;font-size:.8rem">Source: ${TA.esc(r.sourceName)} · last closed candle ${when(n - 1)}</p></section>
+          <div class="span-6">${sec("Structure breaks", "BOS = trend continues past a swing. CHOCH = first break against the prior trend.", tbl(["Type", "Direction", "Level", "When"], ev.map((e) => `<tr><td><b>${e.type}</b></td><td>${bias(e.direction)}</td><td class="r num">${TA.fmtPrice(e.level)}</td><td class="muted">${when(e.index)}</td></tr>`), "No structure breaks in this window."))}</div>
+          <div class="span-6">${sec("Liquidity", "Resting liquidity = untouched swing highs (buy-side) and lows (sell-side) where stops tend to cluster.", tbl(["Side", "Level", "Distance", "Status"], [...above.map((x) => ["Buy-side above", x]), ...below.map((x) => ["Sell-side below", x])].map(([k, x]) => `<tr><td>${k}</td><td class="r num">${TA.fmtPrice(x.level)}</td><td class="r num">${dist(x.level, x.level)}</td><td class="muted">Resting since ${when(x.index)}</td></tr>`).concat(sweeps.map((x) => `<tr><td>${x.side === "BSL" ? "Buy-side" : "Sell-side"} sweep</td><td class="r num">${TA.fmtPrice(x.level)}</td><td class="r num">—</td><td class="muted">Swept ${when(x.event_index)}</td></tr>`)), "No resting liquidity levels found."))}</div>
+          <div class="span-6">${sec("Order blocks", "The last opposite candle before a move that broke structure. Shown while not yet broken or fully mitigated.", tbl(["Bias", "Low", "High", "Distance", "Formed"], obs.map((z) => `<tr><td>${bias(z.direction)}</td><td class="r num">${TA.fmtPrice(z.low)}</td><td class="r num">${TA.fmtPrice(z.high)}</td><td class="r num">${dist(z.low, z.high)}</td><td class="muted">${when(z.index)} · ${TA.esc(z.status)}</td></tr>`), "No active order blocks."))}</div>
+          <div class="span-6">${sec("Fair value gaps", "Three-candle imbalances where price moved too fast to trade both ways. Shown until filled.", tbl(["Bias", "Low", "High", "Distance", "Formed"], fvgs.map((z) => `<tr><td>${bias(z.direction)}</td><td class="r num">${TA.fmtPrice(z.low)}</td><td class="r num">${TA.fmtPrice(z.high)}</td><td class="r num">${dist(z.low, z.high)}</td><td class="muted">${when(z.index)} · ${TA.esc(z.status)}</td></tr>`), "No unfilled fair value gaps."))}</div>
+          <div class="span-6">${sec("Candlestick patterns (last 12 candles)", "Single- and multi-candle patterns. On their own they have weak predictive value; read them with structure and context.", tbl(["Pattern", "Bias", "Candle"], pats.map((p) => `<tr><td><b>${TA.esc(p.pattern)}</b></td><td>${bias(p.bias)}</td><td class="muted">${when(p.index)}</td></tr>`), "No candlestick patterns in the last 12 candles."))}</div>
+          <div class="span-6">${sec("Chart formations", "Double tops/bottoms with their neckline. Confirmed once price closes through the neckline.", tbl(["Formation", "Bias", "Neckline", "Status"], forms.map((f) => `<tr><td><b>${TA.esc(f.formation)}</b></td><td>${bias(f.bias)}</td><td class="r num">${TA.fmtPrice(f.neckline)}</td><td class="muted">${f.status === "confirmed" ? `Confirmed ${when(f.confirmed_index)}` : "Forming"}</td></tr>`), "No double tops or bottoms detected."))}</div>
+        </div>`;
+      }
+      $("#psym", el).addEventListener("change", (e) => { si = +e.target.value; load(); });
+      el.querySelectorAll("[data-ptf]").forEach((b) => b.addEventListener("click", () => { tf = b.dataset.ptf; el.querySelectorAll("[data-ptf]").forEach((x) => x.setAttribute("aria-pressed", x === b)); load(); }));
+      load();
+      every(120000, load);
+    },
+
     async scanner(el) {
       const B = TA.Providers && TA.Providers.binance;
       const tfs = ["1H", "4H", "1D"];
@@ -741,7 +790,6 @@
   };
 
   const soonCopy = {
-    patterns: ["Pattern & SMC analysis", "Detected patterns, order blocks and liquidity zones, each with the reasoning behind it. Needs an approved analysis service."],
     futures: ["Futures intelligence", "Funding, open interest and liquidation context for perpetual contracts. Needs a derivatives data source."],
   };
   Object.keys(soonCopy).forEach((id) => (views[id] = (el) => {
