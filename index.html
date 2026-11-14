@@ -7,8 +7,8 @@
   <meta name="description" content="TRADE-AI analyses crypto Spot and Futures markets and explains LONG, SHORT or NO TRADE setups with entries, stops, targets and the evidence behind them. Analysis only — no automated trading." />
   <meta name="theme-color" content="#0B1016" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2336D6E7' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 17l5-5 4 3 7-8'/%3E%3Cpath d='M15 7h5v5'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="assets/css/base.css?v=2" />
-  <link rel="stylesheet" href="assets/css/landing.css?v=2" />
+  <link rel="stylesheet" href="assets/css/base.css?v=4" />
+  <link rel="stylesheet" href="assets/css/landing.css?v=4" />
 </head>
 <body class="landing">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -68,17 +68,17 @@
             <div class="mini"><small><span class="term" tabindex="0" data-tip="Heuristic score of aligned conditions — not a probability of winning.">Setup score</span></small><span>72 / 100</span></div>
             <div class="mini"><small>State</small><span>Active</span></div>
           </div>
-          <figcaption id="previewCap" class="muted" style="font-size:.76rem;margin-top:10px">Illustrative preview generated from sample data. Not live prices.</figcaption>
+          <figcaption id="previewCap" class="muted" style="font-size:.76rem;margin-top:10px">Illustrative preview generated from sample data. Not live prices. Chart motion is simulated.</figcaption>
         </figure>
       </div>
     </section>
 
     <!-- TRUST -->
     <section class="trust" aria-label="Transparency commitments">
-      <div class="wrap trust-grid">
-        <div class="card trust-item reveal"><div class="ic" data-icon="eye"></div><div><h3>Explainable signals</h3><p>Every setup lists supporting and conflicting evidence in plain language.</p></div></div>
-        <div class="card trust-item reveal" style="--d:80ms"><div class="ic" data-icon="clock"></div><div><h3>Data freshness, always</h3><p>Each view shows its data source and age, and warns when data goes stale.</p></div></div>
-        <div class="card trust-item reveal" style="--d:160ms"><div class="ic" data-icon="shield"></div><div><h3>No guaranteed returns</h3><p>Decision support, not financial advice. No profit promises, no inflated win rates.</p></div></div>
+      <div class="wrap trust-grid" data-stagger>
+        <div class="card card-hover trust-item reveal"><div class="ic" data-icon="eye"></div><div><h3>Explainable signals</h3><p>Every setup lists supporting and conflicting evidence in plain language.</p></div></div>
+        <div class="card card-hover trust-item reveal"><div class="ic" data-icon="clock"></div><div><h3>Data freshness, always</h3><p>Each view shows its data source and age, and warns when data goes stale.</p></div></div>
+        <div class="card card-hover trust-item reveal"><div class="ic" data-icon="shield"></div><div><h3>No guaranteed returns</h3><p>Decision support, not financial advice. No profit promises, no inflated win rates.</p></div></div>
       </div>
     </section>
 
@@ -90,12 +90,12 @@
           <h2>One terminal for reading the market</h2>
           <p>Built for traders who want context, not just arrows.</p>
         </div>
-        <div class="features-grid">
+        <div class="features-grid" data-stagger>
           <article class="card card-hover feature wide reveal"><div class="ic" data-icon="globe"></div><h3>Live market analysis</h3><p>Spot and Futures context in one place — trend, structure, volatility and funding, summarised per symbol.</p></article>
-          <article class="card card-hover feature wide reveal" style="--d:80ms"><div class="ic" data-icon="candles"></div><h3>Advanced charts</h3><p>Multi-timeframe candles with indicators, plus entry, stop and target levels drawn onto the chart.</p></article>
+          <article class="card card-hover feature wide reveal"><div class="ic" data-icon="candles"></div><h3>Advanced charts</h3><p>Multi-timeframe candles with indicators, plus entry, stop and target levels drawn onto the chart.</p></article>
           <article class="card card-hover feature reveal"><div class="ic" data-icon="radar"></div><h3>Market scanner</h3><p>Filter pairs by structure, momentum and volume to find what's worth a closer look.</p></article>
-          <article class="card card-hover feature reveal" style="--d:80ms"><div class="ic" data-icon="history"></div><h3>Signal history</h3><p>Every signal is tracked to its outcome — target, stop, expiry or invalidation — and kept on record.</p></article>
-          <article class="card card-hover feature reveal" style="--d:160ms"><div class="ic" data-icon="gauge"></div><h3>Risk tools</h3><p>Size positions from your account risk and stop distance before you ever touch an exchange.</p></article>
+          <article class="card card-hover feature reveal"><div class="ic" data-icon="history"></div><h3>Signal history</h3><p>Every signal is tracked to its outcome — target, stop, expiry or invalidation — and kept on record.</p></article>
+          <article class="card card-hover feature reveal"><div class="ic" data-icon="gauge"></div><h3>Risk tools</h3><p>Size positions from your account risk and stop distance before you ever touch an exchange.</p></article>
         </div>
       </div>
     </section>
@@ -107,11 +107,11 @@
           <div class="eyebrow">How it works</div>
           <h2>From raw data to a tracked outcome</h2>
         </div>
-        <ol class="steps" style="list-style:none;margin:0;padding:0">
-          <li class="card step reveal"><div class="ic" data-icon="database" data-icon-class="icon-lg"></div><h3>Market data</h3><p>Prices, volume and derivatives data are collected and timestamped.</p></li>
-          <li class="card step reveal" style="--d:80ms"><div class="ic" data-icon="layers" data-icon-class="icon-lg"></div><h3>Analysis</h3><p>Structure, trend and momentum are checked across timeframes.</p></li>
-          <li class="card step reveal" style="--d:160ms"><div class="ic" data-icon="target" data-icon-class="icon-lg"></div><h3>Explained setup</h3><p>LONG, SHORT or NO TRADE — with levels and the reasons on both sides.</p></li>
-          <li class="card step reveal" style="--d:240ms"><div class="ic" data-icon="history" data-icon-class="icon-lg"></div><h3>Tracked outcome</h3><p>The result is recorded honestly, wins and losses alike.</p></li>
+        <ol class="steps" data-stagger style="list-style:none;margin:0;padding:0">
+          <li class="card card-hover step reveal"><div class="ic" data-icon="database" data-icon-class="icon-lg"></div><h3>Market data</h3><p>Prices, volume and derivatives data are collected and timestamped.</p></li>
+          <li class="card card-hover step reveal"><div class="ic" data-icon="layers" data-icon-class="icon-lg"></div><h3>Analysis</h3><p>Structure, trend and momentum are checked across timeframes.</p></li>
+          <li class="card card-hover step reveal"><div class="ic" data-icon="target" data-icon-class="icon-lg"></div><h3>Explained setup</h3><p>LONG, SHORT or NO TRADE — with levels and the reasons on both sides.</p></li>
+          <li class="card card-hover step reveal"><div class="ic" data-icon="history" data-icon-class="icon-lg"></div><h3>Tracked outcome</h3><p>The result is recorded honestly, wins and losses alike.</p></li>
         </ol>
       </div>
     </section>
@@ -124,7 +124,7 @@
           <h2>Sample signal cards</h2>
           <p>These are illustrative examples built from sample data — they're here to show the format, not to report real trades or results.</p>
         </div>
-        <div class="samples-grid" id="samples"></div>
+        <div class="samples-grid" data-stagger id="samples"></div>
       </div>
     </section>
 
@@ -136,8 +136,8 @@
           <h2>Try it before you pay</h2>
           <p>Start with free signals. Upgrade when you're ready.</p>
         </div>
-        <div class="pricing-grid">
-          <div class="card plan reveal">
+        <div class="pricing-grid" data-stagger>
+          <div class="card card-hover plan reveal">
             <span class="badge" style="align-self:flex-start">Trial</span>
             <div class="plan-price">$0</div>
             <ul>
@@ -147,7 +147,7 @@
             </ul>
             <a class="btn" href="app.html">Start free trial</a>
           </div>
-          <div class="card plan featured reveal" style="--d:80ms">
+          <div class="card card-hover plan featured reveal">
             <span class="badge badge-demo" style="align-self:flex-start">Monthly</span>
             <div class="plan-price">$<span data-cfg="price">20</span> <small>USD / month</small></div>
             <ul>
@@ -167,7 +167,7 @@
     <section id="faq">
       <div class="wrap">
         <div class="section-head reveal"><div class="eyebrow">FAQ</div><h2>Straight answers</h2></div>
-        <div class="faq" id="faqList">
+        <div class="faq" id="faqList" data-stagger>
           <div class="faq-item reveal"><button class="faq-q" aria-expanded="false">Do you cover Spot and Futures?<span data-icon="plus"></span></button><div class="faq-a" role="region"><div><p>Yes. Every signal is labelled Spot or Futures. Futures views add derivatives context such as funding and open interest wherever the data source provides it.</p></div></div></div>
           <div class="faq-item reveal"><button class="faq-q" aria-expanded="false">What does a signal include?<span data-icon="plus"></span></button><div class="faq-a" role="region"><div><p>Direction (LONG, SHORT or NO TRADE), symbol, market, strategy, timeframe, timestamp, data source and freshness, entry zone, stop-loss, targets, an invalidation condition, a heuristic setup score, and supporting and conflicting evidence.</p></div></div></div>
           <div class="faq-item reveal"><button class="faq-q" aria-expanded="false">Does TRADE-AI place trades for me?<span data-icon="plus"></span></button><div class="faq-a" role="region"><div><p>No. TRADE-AI is analysis and decision support only. It never connects to your exchange account, never asks for trading permissions and never places orders.</p></div></div></div>
@@ -198,11 +198,12 @@
     </div>
   </footer>
 
-  <script src="assets/js/config.js?v=2"></script>
-  <script src="assets/js/core.js?v=2"></script>
-  <script src="assets/js/fixtures/demo.js?v=2"></script>
-  <script src="assets/js/services/signals.js?v=2"></script>
-  <script src="assets/js/components.js?v=2"></script>
-  <script src="assets/js/landing.js?v=2"></script>
+  <script src="assets/js/config.js?v=4"></script>
+  <script src="assets/js/core.js?v=4"></script>
+  <script src="assets/js/fixtures/demo.js?v=4"></script>
+  <script src="assets/js/services/signals.js?v=4"></script>
+  <script src="assets/js/components.js?v=4"></script>
+  <script src="assets/js/hero-chart.js?v=4"></script>
+  <script src="assets/js/landing.js?v=4"></script>
 </body>
 </html>

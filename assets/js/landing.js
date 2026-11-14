@@ -16,8 +16,7 @@
   });
 
   // Hero chart (demo fixture, clearly labelled in markup)
-  const hero = document.getElementById("heroChart");
-  hero.innerHTML = TA.candleChart(TA.DEMO.candles(56, 100, 7), { w: 600, h: 260, volume: true });
+  TA.heroChart(document.getElementById("heroChart"));
 
   // Sample signals
   document.getElementById("samples").innerHTML = TA.DEMO.signals

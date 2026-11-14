@@ -51,6 +51,8 @@ section { padding: var(--s-9) 0; position: relative; }
 .preview-pair strong { font: 650 1.05rem/1 var(--font-display); }
 .chart-box { position: relative; height: 260px; background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--r-md); overflow: hidden; }
 .chart-box svg { width: 100%; height: 100%; }
+.chart-box .gl { stroke: rgba(145,163,176,0.08); }
+.chart-box .ax { fill: var(--tx-3); font: 10px var(--font-mono); }
 .preview-foot { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 12px; }
 .mini { background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; }
 .mini small { display: block; color: var(--tx-3); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; }
@@ -61,11 +63,27 @@ section { padding: var(--s-9) 0; position: relative; }
 .js-motion .is-visible .draw, .js-motion .draw.go { stroke-dashoffset: 0; }
 .js-motion .candle { opacity: 0; transform: scaleY(0.4); transform-box: fill-box; transform-origin: center; transition: opacity 420ms var(--ease), transform 420ms var(--ease); transition-delay: calc(var(--i) * 22ms); }
 .js-motion .is-visible .candle { opacity: 1; transform: none; }
+.js-motion .vol { transform: scaleY(0); transform-box: fill-box; transform-origin: bottom; transition: transform 520ms var(--ease); transition-delay: calc(var(--i) * 18ms + 200ms); }
+.js-motion .is-visible .vol { transform: none; }
+.js-motion .ema-dot { opacity: 0; transition: opacity 400ms 1.6s; }
+.js-motion .is-visible .ema-dot { opacity: 1; }
+.js-motion .is-visible .ema-dot { animation: emaPulse 2.8s ease-in-out 2s infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes emaPulse { 50% { transform: scale(1.7); opacity: 0.55; } }
+/* After the intro, live ticks redraw without replaying the entrance */
+.chart-box.settled .candle, .chart-box.settled .vol, .chart-box.settled .draw, .chart-box.settled .ema-dot { transition: none !important; transform: none; stroke-dashoffset: 0; }
+.chart-box.settled .candle, .chart-box.settled .ema-dot { opacity: 1; }
+.chart-box.settled.fresh .candle-last { animation: candleIn 600ms var(--ease); }
+@keyframes candleIn { from { opacity: 0; transform: scaleY(0.3); } }
+.chart-box.paused .ema-dot { animation-play-state: paused; }
+
 
 /* Trust strip */
 .trust { padding: 0 0 var(--s-8); }
 .trust-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-4); }
 .trust-item { padding: var(--s-5); display: flex; gap: 14px; }
+.card-hover:focus-within { border-color: var(--line-strong); }
+.card-hover .ic { transition: transform var(--dur-2) var(--ease), color var(--dur-2); }
+.card-hover:hover .ic { transform: translateY(-2px); color: var(--accent); }
 .trust-item .ic { width: 42px; height: 42px; border-radius: 12px; display: grid; place-items: center; flex: none; background: var(--bg-3); border: 1px solid var(--line); color: var(--teal); }
 .trust-item h3 { font-size: 1rem; margin-bottom: 4px; }
 .trust-item p { margin: 0; font-size: 0.92rem; }

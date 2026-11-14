@@ -87,10 +87,11 @@
   };
 
   // Candlestick SVG with optional EMA + volume. Pure function of the candles passed in.
-  TA.candleChart = (cs, { w = 800, h = 320, ema = true, volume = true, grid = true, cls = "" } = {}) => {
+  // range: optional fixed [lo, hi] price scale so live redraws don't rescale/jump.
+  TA.candleChart = (cs, { w = 800, h = 320, ema = true, volume = true, grid = true, cls = "", range = null } = {}) => {
     if (!cs || !cs.length) return "";
     const padR = 54, padB = 22, volH = volume ? 46 : 0;
-    const hi = Math.max(...cs.map((c) => c.h)), lo = Math.min(...cs.map((c) => c.l));
+    const [lo, hi] = range || [Math.min(...cs.map((c) => c.l)), Math.max(...cs.map((c) => c.h))];
     const ch = h - padB - volH - 10;
     const y = (v) => 8 + ((hi - v) / (hi - lo)) * (ch - 8);
     const step = (w - padR) / cs.length, bw = Math.max(2, step * 0.6);
@@ -102,14 +103,16 @@
     }
     cs.forEach((c, i) => {
       const x = i * step + step / 2, up = c.c >= c.o, col = up ? "var(--up)" : "var(--down)";
-      out += `<g class="candle" style="--i:${i}"><line x1="${x}" x2="${x}" y1="${y(c.h)}" y2="${y(c.l)}" stroke="${col}" stroke-width="1"/>
+      out += `<g class="candle${i === cs.length - 1 ? " candle-last" : ""}" style="--i:${i}"><line x1="${x}" x2="${x}" y1="${y(c.h)}" y2="${y(c.l)}" stroke="${col}" stroke-width="1"/>
         <rect x="${x - bw / 2}" y="${y(Math.max(c.o, c.c))}" width="${bw}" height="${Math.max(1, Math.abs(y(c.o) - y(c.c)))}" fill="${col}" rx="1" opacity="${up ? 0.9 : 0.85}"/></g>`;
-      if (volume) out += `<rect x="${x - bw / 2}" y="${h - padB - (c.v / vmax) * volH}" width="${bw}" height="${(c.v / vmax) * volH}" fill="${col}" opacity="0.22"/>`;
+      if (volume) out += `<rect class="vol" style="--i:${i}" x="${x - bw / 2}" y="${h - padB - (c.v / vmax) * volH}" width="${bw}" height="${(c.v / vmax) * volH}" fill="${col}" opacity="0.22"/>`;
     });
     if (ema) {
       let e = cs[0].c; const k = 2 / 21;
       const pts = cs.map((c, i) => { e = c.c * k + e * (1 - k); return `${(i * step + step / 2).toFixed(1)},${y(e).toFixed(1)}`; });
       out += `<polyline class="draw" style="--len:2400" points="${pts.join(" ")}" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"/>`;
+      const last = pts[pts.length - 1].split(",");
+      out += `<circle class="ema-dot" cx="${last[0]}" cy="${last[1]}" r="3" fill="var(--accent)"/>`;
     }
     return `<svg class="${cls}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Candlestick chart${ema ? " with 20-period EMA" : ""}">${out}</svg>`;
   };

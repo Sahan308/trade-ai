@@ -82,20 +82,29 @@
   // ---- Motion ----
   TA.reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   TA.initReveal = (root = document) => {
+    // Stagger grouped cards: children of [data-stagger] get increasing delays (capped).
+    root.querySelectorAll("[data-stagger]").forEach((g) =>
+      [...g.querySelectorAll(":scope > .reveal, :scope > * > .reveal")].forEach((el, i) => el.style.setProperty("--d", `${Math.min(i, 5) * 70}ms`)));
     const els = root.querySelectorAll(".reveal:not(.is-visible)");
     if (TA.reducedMotion() || !("IntersectionObserver" in window)) {
       els.forEach((el) => el.classList.add("is-visible"));
       return;
     }
-    document.documentElement.classList.add("js-motion");
-    const io = new IntersectionObserver(
+    let io;
+    try {
+      io = new IntersectionObserver(
       (entries) =>
         entries.forEach((e) => {
           if (e.isIntersecting) { e.target.classList.add("is-visible"); io.unobserve(e.target); }
         }),
-      { rootMargin: "0px 0px -8% 0px", threshold: 0.08 }
-    );
-    els.forEach((el) => io.observe(el));
+        { rootMargin: "0px 0px -8% 0px", threshold: 0.08 }
+      );
+      els.forEach((el) => io.observe(el));
+      // Hide-until-visible only once observation is running, so a failure never leaves content invisible.
+      document.documentElement.classList.add("js-motion");
+    } catch (e) {
+      els.forEach((el) => el.classList.add("is-visible"));
+    }
   };
 
   // ---- Accessible modal with focus trap ----
