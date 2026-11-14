@@ -107,3 +107,23 @@ class BacktestRun(Base):
     data_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     data_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     result: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+
+class User(Base):
+    """An account. Passwords are stored only as scrypt hashes. `plan` is "trial" until billing exists."""
+    __tablename__ = "users"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    email: Mapped[str] = mapped_column(String(254), unique=True, nullable=False, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    plan: Mapped[str] = mapped_column(String(16), nullable=False, default="trial")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class SignalUnlock(Base):
+    """A user revealing one signal's full trade levels. Trial usage = number of unlocks (server-side)."""
+    __tablename__ = "signal_unlocks"
+    __table_args__ = (UniqueConstraint("user_id", "signal_id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
+    signal_id: Mapped[str] = mapped_column(String(36), ForeignKey("signals.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     # Concurrent WebSocket connections per client IP (per process)
     ws_max_per_ip: int = 10
 
+    # Accounts (Milestone 7). Secret signs session tokens; required in production.
+    auth_secret: str = "dev-only-insecure-secret-change-me"
+    token_ttl_hours: int = 24 * 14
+    trial_signals: int = 3
+
     @field_validator("database_url", mode="before")
     @classmethod
     def normalise_db_url(cls, v):
@@ -51,6 +56,14 @@ class Settings(BaseSettings):
     def no_wildcard_in_prod(cls, v, info):
         if info.data.get("env") == "production" and "*" in v:
             raise ValueError("Wildcard CORS origin is not allowed in production")
+        return v
+
+
+    @field_validator("auth_secret")
+    @classmethod
+    def strong_secret_in_prod(cls, v, info):
+        if info.data.get("env") == "production" and (len(v) < 32 or v.startswith("dev-only")):
+            raise ValueError("TRADEAI_AUTH_SECRET must be set to a random value of at least 32 characters in production")
         return v
 
 
