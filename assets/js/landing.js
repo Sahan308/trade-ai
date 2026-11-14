@@ -13,6 +13,7 @@
 
   document.getElementById("subscribeBtn").addEventListener("click", () => {
     if (!P.checkoutEnabled) TA.toast("Checkout isn't live yet — start with the free trial for now.", "info");
+    else location.href = "app.html#/billing";
   });
 
   // Hero chart (demo fixture, clearly labelled in markup)
