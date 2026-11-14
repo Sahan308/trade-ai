@@ -8,22 +8,23 @@
 (function () {
   const TA = window.TA;
   const OPTS = { w: 600, h: 260, volume: true };
-  const TICK_MS = 1800, TWEEN_MS = 900, NEW_CANDLE_EVERY = 5, INTRO_MS = 2400;
+  const TICK_MS = 650, TWEEN_MS = 420, NEW_CANDLE_EVERY = 4, INTRO_MS = 1300;
 
   TA.heroChart = (box) => {
     if (!box) return;
     let cs = TA.DEMO.candles(56, 100, 7);
     const lo0 = Math.min(...cs.map((c) => c.l)), hi0 = Math.max(...cs.map((c) => c.h));
     const pad = (hi0 - lo0) * 0.12;
-    const range = [lo0 - pad, hi0 + pad];               // fixed scale → no jumping on redraw
-    const draw = () => (box.innerHTML = TA.candleChart(cs, { ...OPTS, range }));
+    const range = [lo0 - pad, hi0 + (hi0 - lo0) * 0.32];   // fixed scale + headroom for the badge
+    const badge = `<span class="live-badge" aria-label="Live demo: simulated motion on sample data"><span class="live-dot" aria-hidden="true"></span>Live demo</span>`;
+    const draw = () => (box.innerHTML = TA.candleChart(cs, { ...OPTS, range }) + badge);
     draw();
 
     if (TA.reducedMotion()) { box.classList.add("settled"); return; }
 
     // seeded walk so the simulation is calm and repeatable
     let seed = 42; const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
-    const step = (hi0 - lo0) * 0.012;
+    const step = (hi0 - lo0) * 0.016;
     let onScreen = false, timer = null, ticks = 0, raf = 0;
 
     function clampToRange(v) { return Math.min(range[1] - pad * 0.3, Math.max(range[0] + pad * 0.3, v)); }

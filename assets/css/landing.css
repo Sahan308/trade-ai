@@ -59,15 +59,15 @@ section { padding: var(--s-9) 0; position: relative; }
 .mini span { font-family: var(--font-mono); font-size: 0.95rem; }
 
 /* Line-draw animation for hero chart */
-.js-motion .draw { stroke-dasharray: var(--len); stroke-dashoffset: var(--len); transition: stroke-dashoffset 1.8s var(--ease); }
+.js-motion .draw { stroke-dasharray: var(--len); stroke-dashoffset: var(--len); transition: stroke-dashoffset 1s var(--ease); }
 .js-motion .is-visible .draw, .js-motion .draw.go { stroke-dashoffset: 0; }
-.js-motion .candle { opacity: 0; transform: scaleY(0.4); transform-box: fill-box; transform-origin: center; transition: opacity 420ms var(--ease), transform 420ms var(--ease); transition-delay: calc(var(--i) * 22ms); }
+.js-motion .candle { opacity: 0; transform: scaleY(0.4); transform-box: fill-box; transform-origin: center; transition: opacity 300ms var(--ease), transform 300ms var(--ease); transition-delay: calc(var(--i) * 11ms); }
 .js-motion .is-visible .candle { opacity: 1; transform: none; }
-.js-motion .vol { transform: scaleY(0); transform-box: fill-box; transform-origin: bottom; transition: transform 520ms var(--ease); transition-delay: calc(var(--i) * 18ms + 200ms); }
+.js-motion .vol { transform: scaleY(0); transform-box: fill-box; transform-origin: bottom; transition: transform 360ms var(--ease); transition-delay: calc(var(--i) * 9ms + 120ms); }
 .js-motion .is-visible .vol { transform: none; }
-.js-motion .ema-dot { opacity: 0; transition: opacity 400ms 1.6s; }
+.js-motion .ema-dot { opacity: 0; transition: opacity 300ms 0.9s; }
 .js-motion .is-visible .ema-dot { opacity: 1; }
-.js-motion .is-visible .ema-dot { animation: emaPulse 2.8s ease-in-out 2s infinite; transform-box: fill-box; transform-origin: center; }
+.js-motion .is-visible .ema-dot { animation: emaPulse 1.6s ease-in-out 1s infinite; transform-box: fill-box; transform-origin: center; }
 @keyframes emaPulse { 50% { transform: scale(1.7); opacity: 0.55; } }
 /* After the intro, live ticks redraw without replaying the entrance */
 .chart-box.settled .candle, .chart-box.settled .vol, .chart-box.settled .draw, .chart-box.settled .ema-dot { transition: none !important; transform: none; stroke-dashoffset: 0; }
@@ -161,3 +161,20 @@ section { padding: var(--s-9) 0; position: relative; }
   .footer-grid { grid-template-columns: 1fr; }
   .cta-band { padding: var(--s-6) var(--s-4); }
 }
+
+/* "Live demo" badge — top-right of the chart, left of the price axis */
+.live-badge { position: absolute; top: 10px; right: 62px; display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px 4px 8px; border-radius: 999px;
+  background: rgba(11,16,22,0.82); border: 1px solid rgba(241,107,117,0.35); color: var(--tx-1); font: 700 0.68rem/1.4 var(--font-sans); letter-spacing: 0.1em; text-transform: uppercase; pointer-events: none; }
+.live-dot { position: relative; width: 8px; height: 8px; border-radius: 50%; background: var(--down); box-shadow: 0 0 8px rgba(241,107,117,0.8); animation: liveBlink 1.4s ease-in-out infinite; }
+.live-dot::after { content: ""; position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--down); animation: liveRing 1.4s ease-out infinite; }
+@keyframes liveBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes liveRing { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(2.6); opacity: 0; } }
+.chart-box.paused .live-dot, .chart-box.paused .live-dot::after { animation-play-state: paused; }
+
+/* Blinking "Long" bias */
+.bias-long { display: inline-block; font-weight: 700; animation: longGlow 1.6s ease-in-out infinite; }
+@keyframes longGlow {
+  0%, 100% { opacity: 1; text-shadow: 0 0 10px rgba(53,201,138,0.65), 0 0 22px rgba(53,201,138,0.3); }
+  50% { opacity: 0.45; text-shadow: none; }
+}
+@media (prefers-reduced-motion: reduce) { .live-dot, .live-dot::after, .bias-long { animation: none !important; } .live-dot::after { display: none; } }
