@@ -50,3 +50,6 @@ The Risk manager (position size calculator) works fully offline from the numbers
 Keyboard-operable nav, accordion, tabs and modal (with a focus trap and Escape to close). Visible focus rings. Direction is shown with text + icon, not colour alone. Scroll reveals use IntersectionObserver. With `prefers-reduced-motion`, content shows immediately and animations are off.
 
 No automated tests are included.
+
+## Updating
+After changing CSS/JS, bump the `?v=N` on asset links in index.html and app.html so browsers fetch the new files.
