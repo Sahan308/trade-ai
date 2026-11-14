@@ -22,7 +22,7 @@
     { group: "Analysis" },
     { id: "signals", label: "Signals", icon: "zap", ready: true },
     { id: "chart", label: "Advanced chart", icon: "candles", ready: true },
-    { id: "scanner", label: "Market scanner", icon: "radar" },
+    { id: "scanner", label: "Market scanner", icon: "radar", ready: true },
     { id: "patterns", label: "Pattern & SMC", icon: "layers" },
     { id: "futures", label: "Futures intelligence", icon: "chart" },
     { group: "Performance & risk" },
@@ -584,6 +584,70 @@
       every(30000, load);
     },
 
+    async scanner(el) {
+      const B = TA.Providers && TA.Providers.binance;
+      const tfs = ["1H", "4H", "1D"];
+      let tf = "1H", rows = null, sortKey = "adx", dir = -1, fil = "all", busy = false, at = null;
+      el.innerHTML = `<section class="card panel">
+        <div class="panel-head" style="flex-wrap:wrap;gap:10px"><h2>${TA.icon("radar")}Market scanner</h2>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <div class="seg" role="group" aria-label="Timeframe">${tfs.map((x) => `<button data-stf="${x}" aria-pressed="${x === tf}">${x}</button>`).join("")}</div>
+            <div class="seg" role="group" aria-label="Filter">${[["all", "All"], ["up", "Uptrend"], ["down", "Downtrend"], ["range", "Ranging"], ["vol", "Volume spike"]].map(([k, l]) => `<button data-sfil="${k}" aria-pressed="${k === fil}">${l}</button>`).join("")}</div>
+            <button class="btn btn-sm" id="srefresh">${TA.icon("refresh", "icon-sm")}Rescan</button></div></div>
+        <p class="muted" style="margin:0 0 12px;font-size:.85rem">The 25 most-traded USDT spot pairs on Binance, measured on closed candles. These are readings, not trade signals or advice. Click a column to sort.</p>
+        <div id="scan"></div><p class="muted" id="smeta" style="font-size:.8rem;margin:10px 0 0"></p></section>`;
+      const host = $("#scan", el);
+      if (store.demo || !B) { host.innerHTML = state("off", "The scanner uses live market data", "Turn off sample data to scan real pairs."); return; }
+      const cols = [["symbol", "Pair", "", false], ["last", "Last", "", true], ["change", "24h", "", true], ["trend", "Trend", "Price vs a rising/falling EMA 50 on this timeframe.", false],
+        ["adx", "ADX", "Trend strength. Above 25 = trending, below 20 = ranging.", true], ["rsi", "RSI", "Momentum, 0–100. Above 70 stretched up, below 30 stretched down.", true],
+        ["macd", "MACD", "Histogram sign: positive = upward momentum.", false], ["volx", "Vol ×", "Last 24 candles' volume vs the 24 before them.", true], ["atrp", "ATR %", "Average candle range as % of price (volatility).", true], ["qv", "24h volume", "", true]];
+      const pass = (r) => fil === "all" || (fil === "up" && r.trend === "Up") || (fil === "down" && r.trend === "Down") || (fil === "range" && r.adx != null && r.adx < 20) || (fil === "vol" && r.volx != null && r.volx >= 1.5);
+      const draw = () => {
+        if (!rows) return;
+        const list = rows.filter(pass).sort((a, b) => { const x = a[sortKey], y = b[sortKey]; return (x == null) - (y == null) || (x > y ? 1 : x < y ? -1 : 0) * dir; });
+        const tr = (r) => `<tr><td><b>${TA.esc(r.symbol)}</b></td><td class="r num">${TA.fmtPrice(r.last)}</td><td class="r">${r.change == null ? "—" : TA.chg(r.change)}</td>
+          <td>${r.trend === "Up" ? `<span class="badge badge-long">Up</span>` : r.trend === "Down" ? `<span class="badge badge-short">Down</span>` : `<span class="badge badge-none">Mixed</span>`}</td>
+          <td class="r num">${fmtN(r.adx, 1)}</td><td class="r num ${r.rsi >= 70 ? "up" : r.rsi <= 30 ? "down" : ""}">${fmtN(r.rsi, 1)}</td>
+          <td class="${r.macd > 0 ? "up" : r.macd < 0 ? "down" : ""}">${r.macd == null ? "—" : r.macd > 0 ? "Positive" : "Negative"}</td>
+          <td class="r num ${r.volx >= 1.5 ? "up" : ""}">${r.volx == null ? "—" : r.volx.toFixed(2) + "×"}</td><td class="r num">${fmtN(r.atrp, 2)}</td><td class="r num">${TA.fmtCompact(r.qv)}</td></tr>`;
+        host.innerHTML = list.length ? `<div class="table-wrap"><table><thead><tr>${cols.map(([k, l, tip, num]) => `<th class="${num ? "r" : ""}"><button class="linkish" data-ssort="${k}" style="all:unset;cursor:pointer">${tip ? `<span class="term" data-tip="${tip}">${l}</span>` : l}${sortKey === k ? (dir > 0 ? " ▲" : " ▼") : ""}</button></th>`).join("")}</tr></thead><tbody>${list.map(tr).join("")}</tbody></table></div>`
+          : state("empty", "No pairs match this filter", "Try another filter or timeframe.");
+      };
+      const scan = async () => {
+        if (busy) return; busy = true;
+        host.innerHTML = `<div class="table-wrap"><table><tbody>${skRows(8, 6)}</tbody></table></div>`;
+        try {
+          const top = await B.topSpot(25);
+          const out = []; let i = 0;
+          const worker = async () => { while (i < top.length) { const p = top[i++];
+            try {
+              const r = await B.candles("Spot", p.symbol, tf, 200), cs = r.candles.slice(0, -1);   // drop the still-open candle
+              const A = TA.Analysis, h = cs.map((x) => x.h), l = cs.map((x) => x.l), c = cs.map((x) => x.c), v = cs.map((x) => x.v);
+              const e50 = A.ema(c, 50), last = c[c.length - 1], eNow = lastOf(e50), ePrev = e50[e50.length - 6];
+              const sumV = (a, b) => v.slice(a, b).reduce((s, x) => s + x, 0), prev = sumV(-48, -24);
+              out.push({ ...p, symbol: p.symbol, qv: p.quoteVolume,
+                trend: eNow == null || ePrev == null ? "Mixed" : last > eNow && eNow > ePrev ? "Up" : last < eNow && eNow < ePrev ? "Down" : "Mixed",
+                adx: lastOf(A.adx(h, l, c).adx), rsi: lastOf(A.rsi(c)), macd: lastOf(A.macd(c).histogram),
+                volx: prev > 0 ? sumV(-24) / prev : null, atrp: last ? (lastOf(A.atr(h, l, c)) / last) * 100 : null });
+            } catch {} } };
+          await Promise.all(Array.from({ length: 5 }, worker));
+          if (!el.isConnected) return;
+          rows = out; at = Date.now(); draw();
+          $("#smeta", el).innerHTML = `Source: Binance Spot · ${out.length} of ${top.length} pairs · ${tf} candles · scanned ${ageHtml(at)}`;
+        } catch (e) { host.innerHTML = state("error", "Couldn't scan the market", TA.esc(e.message || String(e)), `<button class="btn btn-sm" data-act="retry">Try again</button>`); }
+        finally { busy = false; }
+      };
+      el.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-stf],[data-sfil],[data-ssort],#srefresh"); if (!b) return;
+        if (b.dataset.stf) { tf = b.dataset.stf; el.querySelectorAll("[data-stf]").forEach((x) => x.setAttribute("aria-pressed", x === b)); scan(); }
+        else if (b.dataset.sfil) { fil = b.dataset.sfil; el.querySelectorAll("[data-sfil]").forEach((x) => x.setAttribute("aria-pressed", x === b)); draw(); }
+        else if (b.dataset.ssort) { const k = b.dataset.ssort; dir = sortKey === k ? -dir : (k === "symbol" ? 1 : -1); sortKey = k; draw(); }
+        else scan();
+      });
+      scan();
+      every(300000, scan);
+    },
+
     async account(el) {
       if (!TA.Auth.available()) { el.innerHTML = `<section class="card">${state("off", "Accounts need the TRADE-AI server", "Set <code>api.backendBaseUrl</code> in <code>config.js</code>.")}</section>`; return; }
       const user = await TA.Auth.me();
@@ -677,7 +741,6 @@
   };
 
   const soonCopy = {
-    scanner: ["Market scanner", "Filter pairs by structure, momentum and volume. Needs the market data backend and a scanning service."],
     patterns: ["Pattern & SMC analysis", "Detected patterns, order blocks and liquidity zones, each with the reasoning behind it. Needs an approved analysis service."],
     futures: ["Futures intelligence", "Funding, open interest and liquidation context for perpetual contracts. Needs a derivatives data source."],
   };

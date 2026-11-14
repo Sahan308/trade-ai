@@ -97,6 +97,16 @@
       return out;
     },
 
+    /** Most-traded USDT spot pairs by 24h quote volume (excludes stablecoin and leveraged-token pairs). */
+    async topSpot(n = 25) {
+      const rows = await get("spot", "/api/v3/ticker/24hr", { type: "MINI" });
+      const skip = /^(USDC|FDUSD|TUSD|BUSD|DAI|USDP|USDE|EUR|AEUR|PAXG|WBTC|WBETH|BFUSD|XUSD|USD1|RLUSD)USDT$|(UP|DOWN|BULL|BEAR)USDT$/;
+      return rows.filter((r) => r.symbol.endsWith("USDT") && !skip.test(r.symbol) && +r.quoteVolume > 0)
+        .sort((a, b) => +b.quoteVolume - +a.quoteVolume).slice(0, n)
+        .map((r) => ({ symbol: r.symbol.replace(/USDT$/, "/USDT"), last: +r.lastPrice, quoteVolume: +r.quoteVolume,
+                       change: +r.openPrice ? ((+r.lastPrice - +r.openPrice) / +r.openPrice) * 100 : null }));
+    },
+
     /** Contract specs: tick size, lot step, minimums, maintenance margin (futures). Cached for an hour. */
     async specs(market, symbol) {
       const m = marketKey(market), sym = toSymbol(symbol), key = `${m}:${m === "spot" ? sym : "*"}`;
