@@ -10,7 +10,7 @@
     set demo(v) { try { sessionStorage.setItem("ta-demo", v ? "1" : "0"); } catch {} }
   };
   if (new URLSearchParams(location.search).get("demo") === "1") store.demo = true;
-  const ui = { tf: "4H", ema: true, volume: true };
+  const ui = { tf: "1H", ema: true, volume: true, sym: 0 };
   let lastSignals = [];
 
   // ---------- Routes ----------
@@ -50,11 +50,27 @@
   $("#moreBtn").addEventListener("click", (e) => { e.preventDefault(); drawer(true); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && sb.classList.contains("open")) { drawer(false); menuBtn.focus(); } });
 
+  // ---------- Live resources (streams/timers), closed on every route change ----------
+  const live = new Set();
+  const track = (h) => { if (h) live.add(h); return h; };
+  const closeLive = () => { live.forEach((h) => { try { h.close(); } catch {} }); live.clear(); };
+  const every = (ms, fn) => { const id = setInterval(() => { if (!document.hidden) fn(); }, ms); return track({ close: () => clearInterval(id) }); };
+
+  // Freshness: any element with data-ts shows its age and turns red when stale.
+  const ageHtml = (ts) => `<span data-ts="${ts}">${TA.ago(ts)}</span>`;
+  setInterval(() => document.querySelectorAll("[data-ts]").forEach((el) => {
+    const ts = +el.dataset.ts; if (!ts) return;
+    const stale = (Date.now() - ts) / 1000 > C.api.staleAfterSeconds;
+    el.textContent = TA.ago(ts) + (stale ? " · stale" : "");
+    el.classList.toggle("down", stale);
+  }), 1000);
+
   // ---------- Connection indicator ----------
-  function renderConn(extra) {
-    const el = $("#conn");
-    if (store.demo) { el.className = "conn demo"; el.innerHTML = `<span class="dot"></span>Sample data<span>&nbsp;· not live</span>`; }
-    else if (TA.MarketData.isConfigured()) { el.className = "conn live"; el.innerHTML = `<span class="dot dot-live"></span>Connected<span>${extra ? " · " + extra : ""}</span>`; }
+  function renderConn() {
+    const el = $("#conn"), m = TA.MarketData.mode(store.demo);
+    if (m === "demo") { el.className = "conn demo"; el.innerHTML = `<span class="dot"></span>Sample data<span>&nbsp;· not live</span>`; }
+    else if (m === "provider") { el.className = "conn live"; el.innerHTML = `<span class="dot dot-live"></span>Binance<span>&nbsp;· public data, read-only</span>`; }
+    else if (m === "backend") { el.className = "conn live"; el.innerHTML = `<span class="dot dot-live"></span>TRADE-AI API<span>&nbsp;· read-only</span>`; }
     else { el.className = "conn off"; el.innerHTML = `${TA.icon("wifiOff", "icon-sm")}No data feed<span>&nbsp;· not configured</span>`; }
     $("#demoBanner").hidden = !store.demo;
   }
@@ -69,10 +85,10 @@
   };
   const demoBtn = `<button class="btn btn-sm" data-act="demo-on">${TA.icon("flask", "icon-sm")}View sample preview</button>`;
   const retryBtn = `<button class="btn btn-sm" data-act="retry">${TA.icon("refresh", "icon-sm")}Retry</button>`;
-  const disconnected = (what) => state("off", `${what} isn't connected`, "No market data API is configured, so nothing is shown rather than made-up numbers. Set <code>api.marketDataBaseUrl</code> in <code>config.js</code> once the backend exists.", demoBtn);
+  const disconnected = (what) => state("off", `${what} isn't connected`, "No market data source is configured, so nothing is shown rather than made-up numbers. Set <code>api.publicProvider</code> or <code>api.backendBaseUrl</code> in <code>config.js</code>.", demoBtn);
   const fromResult = (r, what, render) => {
     if (r.status === "disconnected") return disconnected(what);
-    if (r.status === "error") return state("error", `Couldn't load ${what.toLowerCase()}`, `The request failed (${TA.esc(r.error || "unknown error")}). Check the API and try again.`, retryBtn);
+    if (r.status === "error") return state("error", `Couldn't load ${what.toLowerCase()}`, `${TA.esc(r.error || "Unknown error")}.${r.retryAfter ? ` Try again in about ${r.retryAfter}s.` : " Check your connection and try again."}`, retryBtn);
     if (r.status === "empty") return state("empty", `No ${what.toLowerCase()} yet`, "The feed is connected but returned nothing.");
     return render(r.data);
   };
@@ -83,33 +99,119 @@
       <caption class="sr-only">Watchlist${demo ? " — sample data" : ""}</caption>
       <thead><tr><th scope="col">Symbol</th><th scope="col">Market</th><th scope="col" class="r">${demo ? "Sample price" : "Last price"}</th><th scope="col" class="r">24h</th><th scope="col" class="r">Volume</th></tr></thead>
       <tbody>${rows || skRows(5, 5)}</tbody></table></div>`;
-  const wlRows = (data) => data.map((d) => `<tr><th scope="row" style="font-weight:600">${TA.esc(d.symbol)}</th><td><span class="badge">${d.market}</span></td><td class="r num">${TA.fmtPrice(d.last)}</td><td class="r">${TA.chg(d.change24h)}</td><td class="r num">${TA.fmtCompact(d.volume)}</td></tr>`).join("");
+  const prevPx = new Map();
+  const wlRows = (data) => data.map((d) => {
+    const key = d.symbol + d.market, prev = prevPx.get(key); prevPx.set(key, d.last);
+    const flash = prev != null && prev !== d.last ? (d.last > prev ? "flash-up" : "flash-down") : "";
+    return `<tr class="${flash}"><th scope="row" style="font-weight:600">${TA.esc(d.symbol)}</th><td><span class="badge">${d.market}</span></td><td class="r num">${TA.fmtPrice(d.last)}</td><td class="r">${TA.chg(d.change24h)}</td><td class="r num" title="24h quote volume (USDT)">${TA.fmtCompact(d.volume)}</td></tr>`;
+  }).join("");
+  const srcLine = (r) => r.source === "demo"
+    ? `<p class="demo-stamp" style="margin:10px 0 0">${TA.icon("flask", "icon-sm")}Sample fixture — not market data</p>`
+    : `<p class="muted" style="font-size:.78rem;margin:10px 0 0">Source: ${[...new Set(r.data.map((d) => d.source))].join(" & ")} · last price &amp; 24h stats · fetched ${ageHtml(r.fetchedAt)} · refreshes every ${C.watchlistRefreshSeconds}s</p>`;
+  /** Render a watchlist into host and keep it refreshed (REST polling, paused while the tab is hidden). */
+  async function mountWatchlist(host, onData) {
+    const load = async () => {
+      const r = await TA.MarketData.getWatchlist({ demo: store.demo });
+      if (!host.isConnected) return;
+      host.innerHTML = fromResult(r, "Watchlist data", (d) => wlTable(wlRows(d), r.source === "demo") + srcLine(r));
+      onData && onData(r);
+      return r;
+    };
+    const r = await load();
+    if (r && r.source !== "demo" && r.status !== "disconnected") every(C.watchlistRefreshSeconds * 1000, load);
+  }
 
+  const chartSymbols = () => store.demo ? [{ symbol: "SAMPLE/USDT", market: "Futures" }] : C.watchlist;
   const chartControls = () => `
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-      <div class="seg" role="group" aria-label="Timeframe">${["15m", "1H", "4H", "1D"].map((t) => `<button type="button" data-tf="${t}" aria-pressed="${ui.tf === t}">${t}</button>`).join("")}</div>
+      <label class="sr-only" for="symSel">Symbol</label>
+      <select id="symSel" class="sel" data-sym>${chartSymbols().map((w, i) => `<option value="${i}" ${i === ui.sym ? "selected" : ""}>${w.symbol} · ${w.market}</option>`).join("")}</select>
+      <div class="seg" role="group" aria-label="Timeframe">${["1m", "15m", "1H", "4H", "1D"].map((t) => `<button type="button" data-tf="${t}" aria-pressed="${ui.tf === t}">${t}</button>`).join("")}</div>
       <div class="chips" role="group" aria-label="Indicators">
         <button type="button" class="chip" data-ind="ema" aria-pressed="${ui.ema}"><span class="term" data-tip="Exponential moving average — a trend line weighted toward recent prices." tabindex="-1">EMA 20</span></button>
         <button type="button" class="chip" data-ind="volume" aria-pressed="${ui.volume}">Volume</button>
       </div>
     </div>`;
 
+  const statusLabel = { connecting: "Connecting…", live: "Live", reconnecting: "Reconnecting…", stale: "Stale — reconnecting", closed: "Closed", snapshot: "Snapshot", sample: "Sample" };
+
   async function loadChart(host) {
-    const area = host.querySelector(".chart-area");
+    if (host._handles) host._handles.forEach((h) => { h && h.close(); live.delete(h); });
+    host._handles = [];
+    const area = host.querySelector(".chart-area"), meta = host.querySelector(".chart-meta"), prem = host.querySelector(".prem");
+    const syms = chartSymbols(); if (ui.sym >= syms.length) ui.sym = 0;
+    const w = syms[ui.sym];
+    host.querySelector(".chart-title").textContent = `· ${w.symbol} · ${w.market}`;
     area.innerHTML = `<div class="skeleton" style="position:absolute;inset:12px"></div>`;
-    const r = await TA.MarketData.getCandles("SOL/USDT", ui.tf, { demo: store.demo });
+    meta.innerHTML = ""; prem.innerHTML = "";
+    const r = await TA.MarketData.getCandles(w.symbol, w.market, ui.tf, { demo: store.demo });
     if (!host.isConnected) return;
-    area.innerHTML = fromResult(r, "Chart data", (cs) => TA.candleChart(cs, { w: 900, h: 340, ema: ui.ema, volume: ui.volume, cls: "chart-anim" }));
-    // trigger line draw
-    requestAnimationFrame(() => area.querySelectorAll(".draw").forEach((p) => p.classList.add("go")));
-    area.querySelectorAll(".candle").forEach((c) => (c.style.opacity = 1, c.style.transform = "none"));
-    const meta = host.querySelector(".chart-meta");
-    if (meta) meta.innerHTML = r.status === "ok" ? `${r.source === "demo" ? '<span class="badge badge-demo">Sample</span> ' : ""}<span class="muted" style="font-size:.8rem">Updated ${TA.fmtTime(r.fetchedAt)}</span>` : "";
+    if (r.status !== "ok") { area.innerHTML = fromResult(r, "Chart data"); return; }
+
+    let cs = r.data.slice(-150), lastMsg = r.fetchedAt, status = r.source === "demo" ? "sample" : "snapshot", raf = 0;
+    const draw = () => { area.innerHTML = TA.candleChart(cs.slice(-90), { w: 900, h: 340, ema: ui.ema, volume: ui.volume }); };
+    const renderMeta = () => {
+      const last = cs[cs.length - 1], dir = last.c >= last.o;
+      const st = status === "live" ? `<span class="badge badge-info"><span class="dot dot-live"></span>${statusLabel[status]}</span>`
+        : status === "sample" ? `<span class="badge badge-demo">${TA.icon("flask", "icon-sm")}Sample</span>`
+        : `<span class="badge ${status === "stale" || status === "reconnecting" ? "badge-short" : ""}">${statusLabel[status] || status}</span>`;
+      meta.innerHTML = `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;font-size:.84rem">
+        ${st}<span><span class="muted">${w.market === "Futures" ? "Last" : "Price"}</span> <b class="num ${dir ? "up" : "down"}">${TA.fmtPrice(last.c)}</b></span>
+        <span class="muted">Candle opened ${TA.fmtTime(last.t)}</span>
+        <span class="muted">Source: ${TA.esc(r.sourceName || "")}</span>
+        <span class="muted">Updated ${ageHtml(lastMsg)}</span>
+        ${r.meta && r.meta.gaps ? `<span class="down">${r.meta.gaps} missing candle(s) in range</span>` : ""}</div>`;
+    };
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (host.isConnected) { draw(); renderMeta(); } }); };
+    const merge = (list) => {
+      const byT = new Map(cs.map((c) => [c.t, c]));
+      list.forEach((c) => byT.set(c.t, c));
+      cs = [...byT.values()].sort((a, b) => a.t - b.t).slice(-150);
+    };
+    draw(); renderMeta();
+
+    // Live candle updates (browser provider only). After a reconnect, reconcile recent candles over REST.
+    const h = TA.MarketData.streamCandles(w.symbol, w.market, ui.tf, (c) => {
+      const last = cs[cs.length - 1];
+      if (c.t < last.t) return;                       // ignore out-of-order updates
+      merge([c]); lastMsg = Date.now(); schedule();
+    }, async (st, info) => {
+      status = st; schedule();
+      if (st === "live" && info && info.reconnected) {
+        const rr = await TA.MarketData.getCandles(w.symbol, w.market, ui.tf, { limit: 20 });
+        if (rr.status === "ok" && host.isConnected) { merge(rr.data); lastMsg = Date.now(); schedule(); }
+      }
+    }, { demo: store.demo });
+    host._handles.push(track(h));
+
+    // Futures: last vs mark vs index, funding
+    if (w.market === "Futures" && !store.demo) {
+      const renderPrem = (p, ts) => {
+        const cell = (k, v, tip) => `<div class="result"><small>${tip ? `<span class="term" tabindex="0" data-tip="${tip}">${k}</span>` : k}</small><div>${v}</div></div>`;
+        prem.innerHTML = `<div class="result-grid" style="grid-template-columns:repeat(auto-fit,minmax(125px,1fr));margin-top:12px">
+          ${cell("Last price", TA.fmtPrice(cs[cs.length - 1].c), "Price of the most recent trade on this contract.")}
+          ${cell("Mark price", TA.fmtPrice(p.mark), "Price Binance uses for unrealised P&L and liquidations.")}
+          ${cell("Index price", TA.fmtPrice(p.index), "Average spot price across several exchanges.")}
+          ${cell("Funding rate", `<span class="${p.fundingRate >= 0 ? "up" : "down"}">${(p.fundingRate * 100).toFixed(4)}%</span>`, "Periodic payment between longs and shorts. Positive: longs pay shorts.")}
+          ${cell("Next funding", TA.fmtTime(p.nextFundingTime))}
+        </div><p class="muted" style="font-size:.78rem;margin:8px 0 0">Source: ${TA.esc(p.source)} · mark/index/funding updated ${ageHtml(ts)}</p>`;
+      };
+      TA.MarketData.getPremium(w.symbol).then((pr) => {
+        if (!host.isConnected) return;
+        if (pr.status === "ok") renderPrem(pr.data, pr.fetchedAt);
+        else if (pr.status === "error") prem.innerHTML = `<p class="down" style="font-size:.84rem;margin-top:12px">${TA.icon("alert", "icon-sm")} Couldn't load mark/index/funding: ${TA.esc(pr.error)}</p>`;
+      });
+      let pRaf = 0, pLast = null;
+      host._handles.push(track(TA.MarketData.streamPremium(w.symbol, (p) => {
+        pLast = p;
+        if (!pRaf) pRaf = setTimeout(() => { pRaf = 0; if (host.isConnected && pLast) renderPrem(pLast, Date.now()); }, 1000);
+      }, () => {})));
+    }
   }
   function chartPanel(title = "Primary chart") {
     return `<section class="card panel" data-chart>
-      <div class="panel-head"><h2>${TA.icon("candles")}${title} <span class="muted" style="font-weight:500;font-size:.85rem">· ${store.demo ? "SAMPLE/USDT" : "No symbol"}</span></h2>${chartControls()}</div>
-      <div class="chart-area"></div><div class="chart-meta" style="margin-top:10px"></div></section>`;
+      <div class="panel-head"><h2>${TA.icon("candles")}${title} <span class="muted chart-title" style="font-weight:500;font-size:.85rem"></span></h2>${chartControls()}</div>
+      <div class="chart-area"></div><div class="chart-meta" style="margin-top:10px"></div><div class="prem"></div></section>`;
   }
 
   // ---------- Views ----------
@@ -117,9 +219,9 @@
     async dashboard(el) {
       el.innerHTML = `
         <div class="status-row">
-          <div class="card stat"><small>Market status</small><strong id="mkStatus">${store.demo ? "Sample" : "Unknown"}</strong><p class="muted">${store.demo ? "Preview fixture" : "Needs data feed"}</p></div>
-          <div class="card stat"><small>Data connection</small><strong>${store.demo ? `<span class="dot" style="color:var(--accent)"></span>Sample` : TA.MarketData.isConfigured() ? `<span class="dot dot-live" style="color:var(--teal)"></span>Live` : `${TA.icon("wifiOff", "icon-sm")}Offline`}</strong><p class="muted">${store.demo ? "Fixture — not live" : "api.marketDataBaseUrl"}</p></div>
-          <div class="card stat"><small>Data freshness</small><strong id="fresh">—</strong><p class="muted">Stale after ${C.api.staleAfterSeconds}s</p></div>
+          <div class="card stat"><small>Market status</small><strong id="mkStatus">${store.demo ? "Sample" : TA.MarketData.isConfigured() ? "Open 24/7" : "Unknown"}</strong><p class="muted">${store.demo ? "Preview fixture" : TA.MarketData.isConfigured() ? "Crypto trades continuously" : "Needs data feed"}</p></div>
+          <div class="card stat"><small>Data connection</small><strong>${store.demo ? `<span class="dot" style="color:var(--accent)"></span>Sample` : TA.MarketData.isConfigured() ? `<span class="dot dot-live" style="color:var(--teal)"></span>Live` : `${TA.icon("wifiOff", "icon-sm")}Offline`}</strong><p class="muted">${TA.esc(TA.MarketData.describeSource(store.demo))}</p></div>
+          <div class="card stat"><small>Data freshness</small><strong id="fresh">—</strong><p class="muted">Watchlist · stale after ${C.api.staleAfterSeconds}s</p></div>
           <div class="card stat"><small>Trial signals</small><strong id="usageTxt"><span class="skeleton" style="width:60px;display:inline-block">&nbsp;</span></strong><div class="usage" id="usageBar" aria-hidden="true"></div></div>
         </div>
         <div class="grid-dash">
@@ -129,13 +231,10 @@
         </div>`;
       loadChart(el.querySelector("[data-chart]"));
 
-      const [wl, sig, use] = await Promise.all([
-        TA.MarketData.getWatchlist({ demo: store.demo }), TA.Signals.getRecent({ demo: store.demo }), TA.Signals.getUsage({ demo: store.demo })
-      ]);
+      mountWatchlist($("#wl", el), (wl) => { $("#fresh", el).innerHTML = wl.fetchedAt ? ageHtml(wl.fetchedAt) : "No data"; });
+      const [sig, use] = await Promise.all([TA.Signals.getRecent({ demo: store.demo }), TA.Signals.getUsage({ demo: store.demo })]);
       if (!el.isConnected) return;
       if (sig.status === "ok") lastSignals = sig.data;
-      $("#wl", el).innerHTML = fromResult(wl, "Watchlist data", (d) => wlTable(wlRows(d), wl.source === "demo"));
-      $("#fresh", el).textContent = wl.fetchedAt ? TA.ago(wl.fetchedAt) : "No data";
       $("#recent", el).innerHTML = sig.status === "disconnected"
         ? state("off", "No signal feed", "Signals appear here once an approved signal backend is connected.", demoBtn)
         : fromResult(sig, "Signals", (d) => d.map((s) => `<button class="sig-row" data-sig="${s.id}">${TA.dirBadge(s.direction)}<span><b>${TA.esc(s.symbol)}</b><br/><span class="muted" style="font-size:.8rem">${s.timeframe} · ${TA.lifeLabel[s.lifecycle]}</span></span><span class="muted" style="font-size:.78rem">${TA.ago(s.createdAt)}</span></button>`).join("") + (sig.source === "demo" ? `<p class="demo-stamp" style="margin:4px 0 0">${TA.icon("flask", "icon-sm")}Illustrative examples</p>` : ""));
@@ -146,15 +245,13 @@
 
     async markets(el) {
       el.innerHTML = `<section class="card panel"><div class="panel-head"><h2>${TA.icon("globe")}Market overview</h2><span class="muted" style="font-size:.85rem">Spot &amp; Futures</span></div><div id="m">${wlTable(null)}</div></section>`;
-      const r = await TA.MarketData.getWatchlist({ demo: store.demo });
-      if (el.isConnected) $("#m", el).innerHTML = fromResult(r, "Market data", (d) => wlTable(wlRows(d), r.source === "demo"));
+      mountWatchlist($("#m", el));
     },
 
     async watchlist(el) {
       el.innerHTML = `<section class="card panel"><div class="panel-head"><h2>${TA.icon("star")}Your watchlist</h2><button class="btn btn-sm" aria-disabled="true" title="Requires accounts">${TA.icon("plus", "icon-sm")}Add symbol</button></div>
         <div class="integration" style="margin-bottom:14px">${TA.icon("info", "icon-sm")}<span>Saving symbols needs accounts and a backend. Adding is disabled until then.</span></div><div id="w">${wlTable(null)}</div></section>`;
-      const r = await TA.MarketData.getWatchlist({ demo: store.demo });
-      if (el.isConnected) $("#w", el).innerHTML = fromResult(r, "Watchlist data", (d) => wlTable(wlRows(d), r.source === "demo"));
+      mountWatchlist($("#w", el));
     },
 
     async signals(el) {
@@ -175,7 +272,7 @@
       draw();
     },
 
-    chart(el) { el.innerHTML = chartPanel("Advanced chart") + `<div class="integration">${TA.icon("info", "icon-sm")}<span>Drawing tools, symbol search and level overlays need the market data backend.</span></div>`; loadChart(el.querySelector("[data-chart]")); },
+    chart(el) { el.innerHTML = chartPanel("Advanced chart") + `<div class="integration">${TA.icon("info", "icon-sm")}<span>Live candles update over a public WebSocket. Drawing tools, symbol search and level overlays come in later milestones.</span></div>`; loadChart(el.querySelector("[data-chart]")); },
 
     history(el) {
       el.innerHTML = `<div class="grid-dash">
@@ -251,6 +348,7 @@
   // ---------- Router ----------
   let current;
   function route() {
+    closeLive();
     const id = (location.hash.match(/^#\/([\w-]+)/) || [])[1] || "dashboard";
     const r = byId[id] || byId.dashboard;
     current = r.id;
@@ -281,6 +379,9 @@
       const s = lastSignals.find((x) => x.id === t.dataset.sig);
       if (s) TA.modal.open(TA.signalDetail(s));
     }
+  });
+  document.addEventListener("change", (e) => {
+    if (e.target.matches("[data-sym]")) { ui.sym = +e.target.value; loadChart(e.target.closest("[data-chart]")); }
   });
   document.addEventListener("keydown", (e) => {
     const t = e.target.closest && e.target.closest('[data-sig][role="button"]');

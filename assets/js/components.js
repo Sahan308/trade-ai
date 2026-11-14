@@ -99,7 +99,7 @@
     let out = "";
     if (grid) for (let i = 0; i <= 4; i++) {
       const v = lo + ((hi - lo) * i) / 4, yy = y(v);
-      out += `<line class="gl" x1="0" x2="${w - padR}" y1="${yy}" y2="${yy}"/><text class="ax" x="${w - padR + 6}" y="${yy + 3}">${v.toFixed(1)}</text>`;
+      out += `<line class="gl" x1="0" x2="${w - padR}" y1="${yy}" y2="${yy}"/><text class="ax" x="${w - padR + 6}" y="${yy + 3}">${v >= 1000 ? v.toFixed(0) : v >= 10 ? v.toFixed(2) : v.toFixed(4)}</text>`;
     }
     cs.forEach((c, i) => {
       const x = i * step + step / 2, up = c.c >= c.o, col = up ? "var(--up)" : "var(--down)";

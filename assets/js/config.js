@@ -19,12 +19,25 @@ window.TRADE_AI_CONFIG = {
 
   // Backend endpoints. null = not connected; the UI shows designed disconnected states.
   api: {
-    backendBaseUrl: null,          // TRADE-AI API, e.g. "http://localhost:8000" — enables the API status indicator
+    backendBaseUrl: null,
+    // Public, key-less exchange data used directly from the browser when no backend is set.
+    // Set to null to disable (the app then shows "not connected" states).
+    publicProvider: "binance",          // TRADE-AI API, e.g. "http://localhost:8000" — enables the API status indicator
     marketDataBaseUrl: null,       // e.g. "https://api.your-backend.example/v1/market"
     signalsBaseUrl: null,          // e.g. "https://api.your-backend.example/v1/signals"
     requestTimeoutMs: 8000,
-    staleAfterSeconds: 60
+    staleAfterSeconds: 30
   },
+
+  // Symbols shown on the dashboard/watchlist (public market data only).
+  watchlist: [
+    { symbol: "BTC/USDT", market: "Spot" },
+    { symbol: "ETH/USDT", market: "Spot" },
+    { symbol: "SOL/USDT", market: "Futures" },
+    { symbol: "BNB/USDT", market: "Spot" },
+    { symbol: "XRP/USDT", market: "Futures" }
+  ],
+  watchlistRefreshSeconds: 15,
 
   auth: { enabled: false },        // no authentication integration yet
 

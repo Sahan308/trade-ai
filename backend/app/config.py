@@ -15,7 +15,15 @@ class Settings(BaseSettings):
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:8080"]
     log_level: str = "INFO"
 
-    @field_validator("cors_origins", mode="before")
+    # Market data (public, key-less)
+    binance_spot_base: str = "https://data-api.binance.vision"
+    binance_futures_base: str = "https://fapi.binance.com"
+    # Symbols listed by /api/markets, as SYMBOL:market pairs
+    markets: Annotated[list[str], NoDecode] = ["BTCUSDT:spot", "ETHUSDT:spot", "SOLUSDT:futures", "BNBUSDT:spot", "XRPUSDT:futures"]
+    # Inbound API rate limit per client IP
+    rate_limit_per_minute: int = 120
+
+    @field_validator("cors_origins", "markets", mode="before")
     @classmethod
     def split_origins(cls, v):
         if isinstance(v, str):
