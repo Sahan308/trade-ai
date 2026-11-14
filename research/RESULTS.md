@@ -36,3 +36,34 @@ Candidates **E and F could never trade**. Their first target was 1.5R, but the f
 ## Decision
 - v1.0.0 remains the code default, but it's flagged in the app as **experimental with negative backtest results**. It should not be sold as a signal service on this evidence.
 - The holdout year is still unused and can serve a future round with a **new, separately pre-registered** hypothesis (for example 4H/1D swing setups where costs are a smaller share of each move, or maker-fee entries).
+
+---
+
+# Round 2 results: 4H swing variants
+
+**Outcome: no candidate met the pre-registered eligibility rules, so nothing is released.** The holdout year is **still unused**.
+
+Protocol: [`PROTOCOL_R2.md`](PROTOCOL_R2.md), committed in `1e64867` before any round-2 candidate was run. Raw numbers: [`design_results_r2.json`](design_results_r2.json). Harness: [`run_r2.py`](run_r2.py).
+
+## Design period: 2023-11-15 → 2025-11-14, 8 spot symbols, 4H decisions with 1D context, pooled
+
+| Candidate | Trades | Win rate | Profit factor | Expectancy | Total | Walk-forward trades | Walk-forward expectancy | Eligible |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| S0: swing profile as is | 618 | 19.9% | 0.71 | −0.265R | −163.7R | 396 | −0.163R | no |
+| S1: stop ≥ 1 ATR | 467 | 25.7% | 0.70 | −0.237R | −110.9R | 317 | −0.210R | no |
+| S2: stop ≥ 1.5 ATR | 264 | 29.5% | 0.76 | −0.170R | −44.9R | 183 | −0.280R | no |
+| S3: S1 + 1D agreement | 421 | 25.7% | 0.71 | −0.229R | −96.5R | 269 | −0.291R | no |
+| S4: S2 + 1D agreement | 240 | 30.8% | 0.76 | −0.163R | −39.2R | 193 | −0.279R | no |
+| S5: S1, min R:R 1.5 | 581 | 28.6% | 0.77 | −0.168R | −97.5R | 317 | −0.210R | no |
+| S6: S1, 2/3/4R targets, min R:R 1.5 | 591 | 33.7% | 0.78 | −0.142R | −84.2R | 392 | −0.118R | no |
+
+All candidates could trade (the feasibility check passed). Every candidate's pooled design result was negative, and almost every symbol was negative for every candidate. The only exceptions were small positives on SOL (S1, S3, S5) and ADA (S4), which isn't a consistent pattern.
+
+## What this shows
+- Moving to 4H reduced how much costs hurt (losses per trade are smaller than on 1H), but the **pullback-to-order-block/FVG idea still has no positive edge** on these 8 coins over these 2 years.
+- Across both rounds (15 candidates, 1H and 4H), the best walk-forward expectancy was −0.118R per trade.
+
+## Decision
+- Stop iterating on this strategy family against the same design period. More variants would mostly fit noise (data snooping).
+- Keep v1.0.0 flagged as experimental in the app with these findings. Don't sell it as a signal service.
+- The holdout year remains untouched, available for a genuinely new idea with its own pre-registered protocol.
