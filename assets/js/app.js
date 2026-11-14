@@ -138,6 +138,8 @@
   async function loadChart(host) {
     if (host._handles) host._handles.forEach((h) => { h && h.close(); live.delete(h); });
     host._handles = [];
+    const token = (host._token = (host._token || 0) + 1);   // newer loadChart calls win
+    const current = () => host.isConnected && host._token === token;
     const area = host.querySelector(".chart-area"), meta = host.querySelector(".chart-meta"), prem = host.querySelector(".prem");
     const syms = chartSymbols(); if (ui.sym >= syms.length) ui.sym = 0;
     const w = syms[ui.sym];
@@ -145,7 +147,7 @@
     area.innerHTML = `<div class="skeleton" style="position:absolute;inset:12px"></div>`;
     meta.innerHTML = ""; prem.innerHTML = "";
     const r = await TA.MarketData.getCandles(w.symbol, w.market, ui.tf, { demo: store.demo });
-    if (!host.isConnected) return;
+    if (!current()) return;
     if (r.status !== "ok") { area.innerHTML = fromResult(r, "Chart data"); return; }
 
     let cs = r.data.slice(-150), lastMsg = r.fetchedAt, status = r.source === "demo" ? "sample" : "snapshot", raf = 0;
@@ -162,7 +164,7 @@
         <span class="muted">Updated ${ageHtml(lastMsg)}</span>
         ${r.meta && r.meta.gaps ? `<span class="down">${r.meta.gaps} missing candle(s) in range</span>` : ""}</div>`;
     };
-    const schedule = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (host.isConnected) { draw(); renderMeta(); } }); };
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (current()) { draw(); renderMeta(); } }); };
     const merge = (list) => {
       const byT = new Map(cs.map((c) => [c.t, c]));
       list.forEach((c) => byT.set(c.t, c));
@@ -179,7 +181,7 @@
       status = st; schedule();
       if (st === "live" && info && info.reconnected) {
         const rr = await TA.MarketData.getCandles(w.symbol, w.market, ui.tf, { limit: 20 });
-        if (rr.status === "ok" && host.isConnected) { merge(rr.data); lastMsg = Date.now(); schedule(); }
+        if (rr.status === "ok" && current()) { merge(rr.data); lastMsg = Date.now(); schedule(); }
       }
     }, { demo: store.demo });
     host._handles.push(track(h));
@@ -198,14 +200,14 @@
         ${TA.MarketData.usingFuturesFallback() ? `<div class="integration" style="margin-top:10px">${TA.icon("info", "icon-sm")}<span>Binance Futures isn't reachable from your region, so Futures data comes from Hyperliquid perpetuals (USDC-settled). Prices can differ slightly from Binance.</span></div>` : ""}`;
       };
       TA.MarketData.getPremium(w.symbol).then((pr) => {
-        if (!host.isConnected) return;
+        if (!current()) return;
         if (pr.status === "ok") renderPrem(pr.data, pr.fetchedAt);
         else if (pr.status === "error") prem.innerHTML = `<p class="down" style="font-size:.84rem;margin-top:12px">${TA.icon("alert", "icon-sm")} Couldn't load mark/index/funding: ${TA.esc(pr.error)}</p>`;
       });
       let pRaf = 0, pLast = null;
       host._handles.push(track(TA.MarketData.streamPremium(w.symbol, (p) => {
         pLast = p;
-        if (!pRaf) pRaf = setTimeout(() => { pRaf = 0; if (host.isConnected && pLast) renderPrem(pLast, Date.now()); }, 1000);
+        if (!pRaf) pRaf = setTimeout(() => { pRaf = 0; if (current() && pLast) renderPrem(pLast, Date.now()); }, 1000);
       }, () => {})));
     }
   }
