@@ -54,7 +54,7 @@
   // ---- Formatting ----
   TA.fmtPrice = (n) => {
     if (n == null || isNaN(n)) return "—";
-    const d = n >= 1000 ? 2 : n >= 1 ? 3 : 5;
+    const a = Math.abs(n), d = a >= 1000 ? 2 : a >= 1 ? 3 : a >= 0.01 || a === 0 ? 5 : Math.min(12, 3 - Math.floor(Math.log10(a)) + 1);
     return n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
   };
   TA.fmtUsd = (n) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
