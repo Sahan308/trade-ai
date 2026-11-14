@@ -14,6 +14,7 @@ Live site (static frontend): https://sahan308.github.io/trade-ai/
       core.js, components.js    Icons, formatting, scroll reveal, modal, signal card, candlestick chart
       hero-chart.js             Landing-page chart animation (sample data only)
       providers/binance.js      Browser adapter for Binance public market data (REST + WebSocket)
+      providers/hyperliquid.js  Futures fallback adapter (used only when Binance Futures is blocked/unreachable)
       services/                 marketData.js, signals.js, health.js — what the UI calls
       fixtures/demo.js          Isolated, labelled sample data (demo mode only)
     backend/                    FastAPI service (Milestone 1)
@@ -22,9 +23,12 @@ Live site (static frontend): https://sahan308.github.io/trade-ai/
       app/db.py, app/models.py  SQLAlchemy 2.0 engine/session + models (audit_logs)
       app/api/health.py         GET /health
       app/api/markets.py        Market data endpoints
-      app/providers/            Provider-neutral types + Binance adapter (rate-limit aware, cached)
+      app/providers/            Provider-neutral types, Binance adapter, Hyperliquid futures fallback, fallback wrapper
+      app/streams.py            Shared upstream WebSocket hub (reconnect, stale detection, reconciliation)
+      app/api/streams.py        /ws/chart and /ws/market endpoints
       app/services/candles.py   Candle validation (malformed rows, duplicates, gaps)
-      app/ratelimit.py          Per-IP rate limit for /api/*
+      app/ratelimit.py          Per-IP rate limit (in-memory, or Redis when TRADEAI_REDIS_URL is set)
+      scripts/smoke_live.py     Live check against real public data (used in CI)
       app/errors.py             Consistent JSON error envelope
       migrations/               Alembic migrations (0001: audit_logs)
       tests/                    pytest suite
@@ -72,7 +76,10 @@ Run the tests:
 | `TRADEAI_BINANCE_SPOT_BASE` | `https://data-api.binance.vision` | Public market-data mirror |
 | `TRADEAI_BINANCE_FUTURES_BASE` | `https://fapi.binance.com` | USDT-M Futures |
 | `TRADEAI_MARKETS` | `BTCUSDT:spot,ETHUSDT:spot,SOLUSDT:futures,BNBUSDT:spot,XRPUSDT:futures` | Listed by `/api/markets` |
-| `TRADEAI_RATE_LIMIT_PER_MINUTE` | `120` | Per client IP, `/api/*` only (in-memory, single process) |
+| `TRADEAI_FUTURES_FALLBACK_BASE` | `https://api.hyperliquid.xyz` | Futures fallback; empty string disables it |
+| `TRADEAI_RATE_LIMIT_PER_MINUTE` | `120` | Per client IP, for `/api/*` requests and WebSocket connection attempts |
+| `TRADEAI_REDIS_URL` | unset | Set it (e.g. `redis://localhost:6379/0`) to share rate limits across processes and servers. Without it, limits are per process. If Redis goes down, requests are allowed and a warning is logged. |
+| `TRADEAI_WS_MAX_PER_IP` | `10` | Concurrent WebSocket connections per IP (per process) |
 
 Secrets belong in environment variables or `.env` (git-ignored), never in `assets/js/config.js`.
 
@@ -94,21 +101,34 @@ Errors use one envelope: `{"error": {"code": "not_found", "message": "...", "req
 | `GET /api/markets/{symbol}/ticker?market=spot\|futures` | Last price, 24h change and quote volume, `data_time`, `source` |
 | `GET /api/futures/{symbol}/funding` | Futures **mark** and **index** price, funding rate and next funding time |
 
-Provider failures map to `502` (provider down or bad payload), `503` (rate limited or region blocked, with `Retry-After`) or `400`. Responses are cached for 5–10s, and the adapter stops before Binance's per-minute request-weight limit. No WebSocket endpoints yet.
+Provider failures map to `502` (provider down or bad payload), `503` (rate limited or region blocked, with `Retry-After`) or `400`. Responses are cached for 5–10s, and the adapter stops before Binance's per-minute request-weight limit.
+
+Ticker responses include `price_label` and funding responses include `index_label`, because the fallback venue reports a mid price and an oracle price rather than a last trade and an index.
+
+### WebSockets
+
+| Endpoint | Events |
+|---|---|
+| `WS /ws/chart/{symbol}/{interval}?market=spot\|futures` | `status`, `candle` (`closed` true when the candle is final), `snapshot` (recent candles over REST after each upstream reconnect) |
+| `WS /ws/market/{symbol}` | `status`, `funding` (mark and index/oracle price, funding rate, next funding time) |
+
+All browsers watching the same stream share one upstream connection. The hub reconnects with backoff, reports `stale` after 30s without data, and closes the upstream when the last viewer leaves. Connections are checked against the CORS origin list and the rate limit.
 
 ## Market data
 
 - **In the browser** (works on GitHub Pages with no backend): `assets/js/providers/binance.js` uses Binance public REST for candles, tickers and mark/index/funding, and WebSockets for live candles and mark price. It reconnects with exponential backoff, treats a feed as stale after 20s of silence, and re-fetches recent candles over REST after every reconnect.
-- **Through the backend**: set `api.backendBaseUrl` in `config.js` and the UI uses the TRADE-AI API instead. The backend has no WebSocket stream yet, so charts show REST snapshots in that mode.
+- **Through the backend**: set `api.backendBaseUrl` in `config.js` and the UI uses the TRADE-AI API and its WebSocket streams instead.
+- **Region fallback**: Spot uses Binance's public market-data mirror (`data-api.binance.vision`), which isn't region-blocked. If Binance Futures is blocked or unreachable, both the browser and the backend switch Futures to **Hyperliquid perpetuals**. They're labelled as the fallback, with "mid" and "oracle" prices named as such, and prices can differ slightly from Binance USDT-M. The backend re-checks Binance every 10 minutes.
+- **Timezone**: all data is kept in UTC. Times are displayed in the timezone chosen under "Display times in" (app sidebar), which is saved in this browser.
 - Every view shows the source, the data time and its freshness. If the provider is unreachable, the UI shows an error state, never sample data.
-- Binance blocks some regions (including the US). Visitors there will see "provider not available" errors.
+- Spot has no second fallback: if `data-api.binance.vision` itself is down, Spot views show an error state.
 
 ## Milestone status
 
 | Milestone | Status |
 |---|---|
 | 1. Foundation — structure, config, API skeleton, `/health`, DB + migrations, app shell, docs, tests | **Implemented** (see "Verification") |
-| 2. Real market data (public Binance Spot/Futures, WebSockets, freshness, reconciliation) | **Implemented**: browser adapter with live streams; backend REST endpoints. Backend WebSocket fan-out still to do |
+| 2. Real market data (public Binance Spot/Futures, WebSockets, freshness, reconciliation) | **Implemented**: browser and backend adapters, backend WebSocket hub, Futures region fallback |
 | 3. Technical analysis indicators and patterns | Not started |
 | 4. SMC detections and signal engine | Not started |
 | 5. Risk, lifecycle, alerts | Frontend position-size calculator only |
@@ -123,6 +143,7 @@ Trial length and renewal terms are unset (`pricing.trialDurationDays`, `pricing.
 ## Verification
 
 - Backend tests: run by GitHub Actions (`.github/workflows/ci.yml`) on every push, against SQLite and Postgres. Binance is mocked in tests (GitHub's runners are in a region Binance blocks).
+- Live smoke test (CI, informational): runs the real API against real public data and checks the REST endpoints and both WebSocket streams. GitHub's runners are in the US, so this also exercises the Futures fallback.
 - Frontend: `node --check` on all JS in CI.
 
 ## Updating the frontend
