@@ -1,9 +1,9 @@
 """Settings loaded from environment variables (prefix TRADEAI_) or a .env file."""
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -11,7 +11,8 @@ class Settings(BaseSettings):
 
     env: Literal["development", "test", "production"] = "development"
     database_url: str = "sqlite:///./tradeai.db"
-    cors_origins: list[str] = ["http://localhost:8080"]
+    # NoDecode: accept a plain comma-separated string instead of requiring JSON
+    cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:8080"]
     log_level: str = "INFO"
 
     @field_validator("cors_origins", mode="before")
