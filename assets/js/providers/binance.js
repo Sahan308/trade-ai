@@ -122,6 +122,30 @@
         min_notional: mn ? num(mn) : null, mmr: row.maintMarginPercent ? num(row.maintMarginPercent) / 100 : null, source: HOSTS[m].name };
     },
 
+    /** All USDT-M perpetuals: mark/index price, funding, plus 24h stats (2 requests). */
+    async futuresBoard() {
+      const [prem, tick] = await Promise.all([get("futures", "/fapi/v1/premiumIndex", {}), get("futures", "/fapi/v1/ticker/24hr", {})]);
+      const t = Object.fromEntries(tick.map((x) => [x.symbol, x]));
+      return prem.filter((r) => r.symbol.endsWith("USDT") && t[r.symbol]).map((r) => ({
+        symbol: r.symbol, mark: num(r.markPrice), index: num(r.indexPrice), funding: num(r.lastFundingRate), nextFunding: +r.nextFundingTime,
+        basis: num(r.indexPrice) ? (num(r.markPrice) - num(r.indexPrice)) / num(r.indexPrice) : null,
+        change: num(t[r.symbol].priceChangePercent), quoteVolume: num(t[r.symbol].quoteVolume) }));
+    },
+
+    /** Per-symbol futures context: open interest history, funding history, long/short account ratios (1h buckets). */
+    async futuresDetail(symbol, period = "1h", limit = 48) {
+      const s = toSymbol(symbol), q = { symbol: s, period, limit };
+      const [oi, fr, ls, top] = await Promise.all([
+        get("futures", "/futures/data/openInterestHist", q), get("futures", "/fapi/v1/fundingRate", { symbol: s, limit: 30 }),
+        get("futures", "/futures/data/globalLongShortAccountRatio", q).catch(() => []), get("futures", "/futures/data/topLongShortPositionRatio", q).catch(() => [])]);
+      return {
+        oi: oi.map((x) => ({ t: +x.timestamp, contracts: num(x.sumOpenInterest), usd: num(x.sumOpenInterestValue) })),
+        funding: fr.map((x) => ({ t: +x.fundingTime, rate: num(x.fundingRate) })),
+        accounts: ls.map((x) => ({ t: +x.timestamp, ratio: num(x.longShortRatio), long: num(x.longAccount) })),
+        top: top.map((x) => ({ t: +x.timestamp, ratio: num(x.longShortRatio), long: num(x.longAccount) })),
+        source: HOSTS.futures.name, fetchedAt: Date.now() };
+    },
+
     /** Futures mark / index price and funding (premiumIndex). */
     async premium(symbol) {
       const r = await get("futures", "/fapi/v1/premiumIndex", { symbol: toSymbol(symbol) });

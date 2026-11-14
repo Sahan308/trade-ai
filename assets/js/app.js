@@ -24,7 +24,7 @@
     { id: "chart", label: "Advanced chart", icon: "candles", ready: true },
     { id: "scanner", label: "Market scanner", icon: "radar", ready: true },
     { id: "patterns", label: "Pattern & SMC", icon: "layers", ready: true },
-    { id: "futures", label: "Futures intelligence", icon: "chart" },
+    { id: "futures", label: "Futures intelligence", icon: "chart", ready: true },
     { group: "Performance & risk" },
     { id: "history", label: "Signal history", icon: "history", ready: true },
     { id: "risk", label: "Risk manager", icon: "gauge", ready: true },
@@ -633,6 +633,71 @@
       every(120000, load);
     },
 
+    async futures(el) {
+      const B = TA.Providers && TA.Providers.binance;
+      let sel = "BTCUSDT", board = null, sortKey = "quoteVolume", dir = -1;
+      el.innerHTML = `<div id="fdet"></div><section class="card panel"><div class="panel-head"><h2>${TA.icon("chart")}Perpetual futures board</h2><button class="btn btn-sm" id="frefresh">${TA.icon("refresh", "icon-sm")}Refresh</button></div>
+        <p class="muted" style="margin:0 0 12px;font-size:.85rem">Top 30 Binance USDT-M perpetuals by 24h volume. Click a row for open interest, funding history and positioning. These are market readings, not signals or advice.</p>
+        <div id="fboard"></div><p class="muted" id="fmeta" style="font-size:.8rem;margin:10px 0 0"></p></section>`;
+      const det = $("#fdet", el), bh = $("#fboard", el);
+      if (store.demo || !B) { bh.innerHTML = state("off", "Uses live futures data", "Turn off sample data to load real futures data."); return; }
+      const pct = (v, d = 4) => (v == null ? "—" : `${v > 0 ? "+" : ""}${(v * 100).toFixed(d)}%`);
+      const fcls = (v) => (v > 0.0001 ? "up" : v < 0 ? "down" : "");
+      const cols = [["symbol", "Contract", ""], ["mark", "Mark", ""], ["change", "24h", ""], ["funding", "Funding", "Rate paid every 8h. Positive = longs pay shorts (crowded long); negative = shorts pay longs."],
+        ["annual", "Funding / yr", "Current funding rate × 3 per day × 365. Rates change every period, so this is illustrative."], ["basis", "Mark vs index", "Perp mark price premium (+) or discount (−) to the spot index."], ["quoteVolume", "24h volume", ""]];
+      const drawBoard = () => {
+        const list = board.slice().sort((a, b) => (a[sortKey] > b[sortKey] ? 1 : a[sortKey] < b[sortKey] ? -1 : 0) * dir);
+        bh.innerHTML = `<div class="table-wrap"><table><thead><tr>${cols.map(([k, l, tip], i) => `<th class="${i ? "r" : ""}"><button data-fsort="${k}" style="all:unset;cursor:pointer">${tip ? `<span class="term" data-tip="${tip}">${l}</span>` : l}${sortKey === k ? (dir > 0 ? " ▲" : " ▼") : ""}</button></th>`).join("")}</tr></thead><tbody>
+          ${list.map((r) => `<tr data-fsym="${r.symbol}" style="cursor:pointer${r.symbol === sel ? ";background:rgba(54,214,231,.07)" : ""}" tabindex="0"><td><b>${r.symbol.replace(/USDT$/, "/USDT")}</b></td><td class="r num">${TA.fmtPrice(r.mark)}</td><td class="r">${TA.chg(r.change)}</td>
+            <td class="r num ${fcls(r.funding)}">${pct(r.funding)}</td><td class="r num ${fcls(r.funding)}">${pct(r.annual, 1)}</td><td class="r num">${pct(r.basis, 3)}</td><td class="r num">${TA.fmtCompact(r.quoteVolume)}</td></tr>`).join("")}</tbody></table></div>`;
+      };
+      const spark = (vals, color = "var(--accent, #36D6E7)") => {
+        const v = vals.filter((x) => x != null); if (v.length < 2) return "";
+        const W = 300, H = 60, lo = Math.min(...v), hi = Math.max(...v), y = (x) => H - 4 - ((x - lo) / (hi - lo || 1)) * (H - 8);
+        return `<svg viewBox="0 0 ${W} ${H}" width="100%" height="60" preserveAspectRatio="none" role="img" aria-label="trend"><polyline fill="none" stroke="${color}" stroke-width="2" points="${v.map((x, i) => `${(i / (v.length - 1)) * W},${y(x)}`).join(" ")}"/></svg>`;
+      };
+      const loadDetail = async () => {
+        det.innerHTML = `<div class="skeleton" style="height:220px;border-radius:18px;margin-bottom:16px"></div>`;
+        try {
+          const d = await B.futuresDetail(sel), row = board && board.find((x) => x.symbol === sel);
+          if (!el.isConnected) return;
+          const oi = d.oi, oiNow = oi.length ? oi[oi.length - 1] : null, oi24 = oi.length > 24 ? oi[oi.length - 25] : oi[0];
+          const oiChg = oiNow && oi24 && oi24.usd ? (oiNow.usd - oi24.usd) / oi24.usd : null;
+          const fr = d.funding, avgF = fr.length ? fr.reduce((s, x) => s + x.rate, 0) / fr.length : null;
+          const acc = d.accounts.length ? d.accounts[d.accounts.length - 1] : null, top = d.top.length ? d.top[d.top.length - 1] : null;
+          const read = [];
+          if (oiChg != null && row) read.push(oiChg > 0.03 && row.change > 0 ? "Open interest and price both rose over 24h: new positions are being added on the way up." : oiChg > 0.03 && row.change < 0 ? "Open interest rose while price fell: new positions are being added on the way down (often shorts)." : oiChg < -0.03 && row.change > 0 ? "Price rose while open interest fell: the move looks driven by shorts closing." : oiChg < -0.03 && row.change < 0 ? "Price and open interest both fell: positions are being closed (long liquidation or de-risking)." : "Open interest is roughly flat over 24h.");
+          if (row) read.push(row.funding > 0.0003 ? "Funding is well above the 0.01% baseline: longs are paying a lot to stay in (crowded long)." : row.funding < 0 ? "Funding is negative: shorts are paying longs (crowded short)." : "Funding is near the normal 0.01% baseline.");
+          if (acc) read.push(`${(acc.long * 100).toFixed(0)}% of accounts are net long.`);
+          det.innerHTML = `<section class="card panel" style="margin-bottom:16px"><div class="panel-head"><h2>${sel.replace(/USDT$/, "/USDT")} perpetual</h2><span class="badge">${TA.esc(d.source)}</span></div>
+            <div class="result-grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+              <div class="result"><small>${term("Open interest", "Total value of open contracts (USD).")}</small><div>${oiNow ? "$" + TA.fmtCompact(oiNow.usd) : "—"} <span class="${oiChg >= 0 ? "up" : "down"}" style="font-size:.85rem">${oiChg == null ? "" : pct(oiChg, 2) + " 24h"}</span></div>${spark(oi.map((x) => x.usd))}</div>
+              <div class="result"><small>${term("Funding (last 30)", "Each settled funding rate, oldest to newest. Average shown.")}</small><div>${row ? pct(row.funding) : "—"} <span class="muted" style="font-size:.85rem">avg ${pct(avgF)}</span></div>${spark(fr.map((x) => x.rate), "#F16B75")}</div>
+              <div class="result"><small>${term("Long/short accounts", "Ratio of accounts net long to net short (all traders).")}</small><div>${acc ? acc.ratio.toFixed(2) : "—"}</div>${spark(d.accounts.map((x) => x.ratio), "#35C98A")}</div>
+              <div class="result"><small>${term("Top traders (positions)", "Long/short ratio of positions held by the top 20% of accounts by margin.")}</small><div>${top ? top.ratio.toFixed(2) : "—"}</div>${spark(d.top.map((x) => x.ratio), "#18B89A")}</div></div>
+            <ul style="margin:12px 0 0;padding-left:18px;font-size:.88rem;color:var(--tx-2);display:grid;gap:4px">${read.map((x) => `<li>${x}</li>`).join("")}</ul>
+            <p class="muted" style="margin:10px 0 0;font-size:.8rem">Charts cover the last 48 hours in 1-hour steps (funding: last 30 payments). Positioning data describes crowding, it doesn't predict direction. Next funding ${row ? TA.fmtTime(row.nextFunding) : "—"}.</p></section>`;
+        } catch (e) { det.innerHTML = `<section class="card" style="margin-bottom:16px">${state("error", "Couldn't load futures detail", TA.esc(e.message || String(e)) + (e.kind === "region" ? " Binance Futures blocks some regions." : ""))}</section>`; }
+      };
+      const loadBoard = async () => {
+        try {
+          const all = await B.futuresBoard();
+          board = all.sort((a, b) => b.quoteVolume - a.quoteVolume).slice(0, 30).map((r) => ({ ...r, annual: r.funding * 3 * 365 }));
+          if (!el.isConnected) return;
+          drawBoard(); $("#fmeta", el).innerHTML = `Source: Binance USDT-M Futures · updated ${ageHtml(Date.now())}`;
+        } catch (e) { bh.innerHTML = state("error", "Couldn't load futures data", TA.esc(e.message || String(e)) + (e.kind === "region" ? " Binance Futures isn't available from your network or region." : ""), `<button class="btn btn-sm" data-act="retry">Try again</button>`); }
+      };
+      el.addEventListener("click", (e) => {
+        const r = e.target.closest("[data-fsym]"), s = e.target.closest("[data-fsort]"), f = e.target.closest("#frefresh");
+        if (s) { const k = s.dataset.fsort; dir = sortKey === k ? -dir : (k === "symbol" ? 1 : -1); sortKey = k; drawBoard(); }
+        else if (r) { sel = r.dataset.fsym; drawBoard(); loadDetail(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+        else if (f) { loadBoard().then(loadDetail); }
+      });
+      el.addEventListener("keydown", (e) => { const r = e.target.closest("[data-fsym]"); if (r && e.key === "Enter") r.click(); });
+      await loadBoard(); loadDetail();
+      every(60000, loadBoard);
+    },
+
     async scanner(el) {
       const B = TA.Providers && TA.Providers.binance;
       const tfs = ["1H", "4H", "1D"];
@@ -790,7 +855,6 @@
   };
 
   const soonCopy = {
-    futures: ["Futures intelligence", "Funding, open interest and liquidation context for perpetual contracts. Needs a derivatives data source."],
   };
   Object.keys(soonCopy).forEach((id) => (views[id] = (el) => {
     const [t, d] = soonCopy[id];
