@@ -3,6 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       days: { description: "days of history", default: "1095" }
+      tfs: { description: "timeframes", default: "1H,4H,1D" }
 permissions:
   contents: write
 jobs:
@@ -14,7 +15,7 @@ jobs:
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
       - run: pip install -r requirements.txt
-      - run: PYTHONPATH=. python scripts/fetch_history.py --out ../research-data --days ${{ inputs.days }} BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT ADAUSDT LINKUSDT AVAXUSDT
+      - run: PYTHONPATH=. python scripts/fetch_history.py --out ../research-data --days ${{ inputs.days }} --tfs ${{ inputs.tfs }} BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT ADAUSDT LINKUSDT AVAXUSDT
       - name: Publish to the research-data branch (orphan; never merged into main)
         working-directory: .
         run: |
