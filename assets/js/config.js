@@ -51,7 +51,7 @@ window.TRADE_AI_CONFIG = {
   auth: { enabled: false },        // no authentication integration yet
 
   links: {
-    methodology: "#methodology",   // placeholder — replace with real pages
+    methodology: "https://github.com/Sahan308/trade-ai/blob/main/research/RESULTS.md",
     risk: "#risk-disclosure",
     privacy: "#privacy",
     terms: "#terms",
