@@ -16,6 +16,7 @@ Live site (static frontend): https://sahan308.github.io/trade-ai/
       providers/binance.js      Browser adapter for Binance public market data (REST + WebSocket)
       providers/hyperliquid.js  Futures fallback adapter (used only when Binance Futures is blocked/unreachable)
       services/                 marketData.js, signals.js, health.js — what the UI calls
+      analysis/ta.js            Indicators, candlestick patterns, formations (JS twin of backend/app/analysis)
       fixtures/demo.js          Isolated, labelled sample data (demo mode only)
     backend/                    FastAPI service (Milestone 1)
       app/main.py               App factory: CORS allowlist, request IDs, security headers, error handlers
@@ -27,6 +28,8 @@ Live site (static frontend): https://sahan308.github.io/trade-ai/
       app/streams.py            Shared upstream WebSocket hub (reconnect, stale detection, reconciliation)
       app/api/streams.py        /ws/chart and /ws/market endpoints
       app/services/candles.py   Candle validation (malformed rows, duplicates, gaps)
+      app/analysis/             indicators.py, patterns.py, summary.py: formulas documented in docstrings
+      app/api/analysis.py       /api/analysis and /api/patterns
       app/ratelimit.py          Per-IP rate limit (in-memory, or Redis when TRADEAI_REDIS_URL is set)
       scripts/smoke_live.py     Live check against real public data (used in CI)
       app/errors.py             Consistent JSON error envelope
@@ -114,6 +117,32 @@ Ticker responses include `price_label` and funding responses include `index_labe
 
 All browsers watching the same stream share one upstream connection. The hub reconnects with backoff, reports `stale` after 30s without data, and closes the upstream when the last viewer leaves. Connections are checked against the CORS origin list and the rate limit.
 
+### Analysis endpoints
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/analysis/{symbol}?market&interval&limit=60..1000` | Latest readings for every indicator, volume profile, Fibonacci, pivots, patterns in the last 30 candles, formations, swing points |
+| `GET /api/patterns/{symbol}?market&interval&window&bias=bullish\|bearish\|neutral` | Candlestick patterns (with the indices of the candles that triggered them) and chart formations |
+
+## Technical analysis
+
+One library, written twice: `backend/app/analysis` (Python, for the API and the future signal engine) and `assets/js/analysis/ta.js` (so the static site can show readings without a backend). `tests/test_parity.py` runs both on the same candles and fails if any output differs, including the pattern hits.
+
+| Group | Indicators (default settings) |
+|---|---|
+| Moving averages | SMA, EMA (seeded with the SMA), WMA, VWMA |
+| Momentum | RSI 14 (Wilder), MACD 12/26/9, Stochastic 14/3/3, CCI 20, MFI 14 |
+| Volatility | ATR 14 (Wilder), Bollinger 20/2 (population σ), Keltner 20/2/ATR 10 |
+| Trend | ADX/DMI 14, Supertrend 10/3, Ichimoku 9/26/52, Parabolic SAR 0.02/0.2 |
+| Volume | OBV, VWAP (anchored to each UTC day), Volume Profile (24 bins, 70% value area) |
+| Levels | Fibonacci retracement (range in view), classic pivots (previous UTC day, or previous bar on 1D) |
+
+- **Warm-up:** values are `null`/`None` until there's enough data (e.g. RSI from bar 15, ADX from bar 28, Ichimoku cloud from bar 78). Nothing is padded or guessed.
+- **No look-ahead:** each value uses only bars up to and including its own. A test checks that adding future bars never changes past values. Ichimoku spans are aligned to the bar where the cloud is drawn, and Chikou is the documented exception.
+- **Candlestick patterns (27):** Doji, Dragonfly/Gravestone/Long-legged doji, Hammer, Hanging man, Inverted hammer, Shooting star, Bullish/Bearish marubozu, Spinning top, Bullish/Bearish engulfing, Bullish/Bearish harami, Piercing line, Dark cloud cover, Tweezer top/bottom, Morning/Evening star, Three white soldiers, Three black crows, Three inside up/down, Three outside up/down. Thresholds are constants in `patterns.py`. Each hit lists its candles, and every pattern has a hand-built test case.
+- **Formations:** fractal swing highs/lows (3 bars each side, so the newest 3 bars are never swings), double top and double bottom (equal within 0.5%, a neckline between them, and "confirmed" only after a close through the neckline).
+- Patterns and readings describe past price action. They are context, not predictions, and the UI says so.
+
 ## Market data
 
 - **In the browser** (works on GitHub Pages with no backend): `assets/js/providers/binance.js` uses Binance public REST for candles, tickers and mark/index/funding, and WebSockets for live candles and mark price. It reconnects with exponential backoff, treats a feed as stale after 20s of silence, and re-fetches recent candles over REST after every reconnect.
@@ -129,7 +158,7 @@ All browsers watching the same stream share one upstream connection. The hub rec
 |---|---|
 | 1. Foundation — structure, config, API skeleton, `/health`, DB + migrations, app shell, docs, tests | **Implemented** (see "Verification") |
 | 2. Real market data (public Binance Spot/Futures, WebSockets, freshness, reconciliation) | **Implemented**: browser and backend adapters, backend WebSocket hub, Futures region fallback |
-| 3. Technical analysis indicators and patterns | Not started |
+| 3. Technical analysis indicators and patterns | **Implemented**: 21 indicators, 27 candlestick patterns, swing points and double tops/bottoms, in Python and JS (parity-tested), API endpoints, chart overlays and readings |
 | 4. SMC detections and signal engine | Not started |
 | 5. Risk, lifecycle, alerts | Frontend position-size calculator only |
 | 6. Backtesting and performance | Not started |

@@ -10,7 +10,7 @@
     set demo(v) { try { sessionStorage.setItem("ta-demo", v ? "1" : "0"); } catch {} }
   };
   if (new URLSearchParams(location.search).get("demo") === "1") store.demo = true;
-  const ui = { tf: "1H", ema: true, volume: true, sym: 0 };
+  const ui = { tf: "1H", ema: true, volume: true, sym: 0, sma50: false, bb: false, vwap: false, st: false, psar: false, ichi: false, pat: true };
   let lastSignals = [];
 
   // ---------- Routes ----------
@@ -130,6 +130,10 @@
       <div class="chips" role="group" aria-label="Indicators">
         <button type="button" class="chip" data-ind="ema" aria-pressed="${ui.ema}"><span class="term" data-tip="Exponential moving average — a trend line weighted toward recent prices." tabindex="-1">EMA 20</span></button>
         <button type="button" class="chip" data-ind="volume" aria-pressed="${ui.volume}">Volume</button>
+        ${[["sma50", "SMA 50", "Simple average of the last 50 closes."], ["bb", "Bollinger", "20-period average ± 2 standard deviations."], ["vwap", "VWAP", "Volume-weighted average price since 00:00 UTC."],
+           ["st", "Supertrend", "ATR-based trailing line; flips when price closes through it."], ["psar", "SAR", "Parabolic SAR dots: a trailing stop-style trend marker."],
+           ["ichi", "Ichimoku cloud", "Area between Ichimoku spans A and B (no look-ahead)."], ["pat", "Patterns", "Markers for candlestick patterns: context, not predictions."]]
+          .map(([k, label, tip]) => `<button type="button" class="chip" data-ind="${k}" aria-pressed="${ui[k]}" title="${tip}">${label}</button>`).join("")}
       </div>
     </div>`;
 
@@ -137,7 +141,7 @@
 
   async function loadChart(host) {
     if (host._handles) host._handles.forEach((h) => { h && h.close(); live.delete(h); });
-    host._handles = [];
+    host._handles = []; host._redraw = null;
     const token = (host._token = (host._token || 0) + 1);   // newer loadChart calls win
     const current = () => host.isConnected && host._token === token;
     const area = host.querySelector(".chart-area"), meta = host.querySelector(".chart-meta"), prem = host.querySelector(".prem");
@@ -151,7 +155,30 @@
     if (r.status !== "ok") { area.innerHTML = fromResult(r, "Chart data"); return; }
 
     let cs = r.data.slice(-150), lastMsg = r.fetchedAt, status = r.source === "demo" ? "sample" : "snapshot", raf = 0;
-    const draw = () => { area.innerHTML = TA.candleChart(cs.slice(-90), { w: 900, h: 340, ema: ui.ema, volume: ui.volume }); };
+    const VIEW = 90;
+    let lastA = null;
+    const draw = () => {
+      const a = (lastA = analyse(cs, ui.tf)), off = Math.max(0, cs.length - VIEW), cut = (arr) => arr.slice(off);
+      const overlays = [], bands = [], dots = [];
+      if (ui.sma50) overlays.push({ values: cut(a.sma50), color: "var(--teal)", label: "SMA 50" });
+      if (ui.bb) { bands.push({ upper: cut(a.bb.upper), lower: cut(a.bb.lower), color: "var(--accent)", opacity: 0.07 }); overlays.push({ values: cut(a.bb.upper), color: "var(--tx-3)", width: 1, label: "Bollinger upper" }, { values: cut(a.bb.lower), color: "var(--tx-3)", width: 1, label: "Bollinger lower" }); }
+      if (ui.vwap) overlays.push({ values: cut(a.vwap), color: "#C59BFF", dash: "4 3", label: "VWAP" });
+      if (ui.st) {
+        const line = cut(a.st.supertrend), dir = cut(a.st.direction);
+        overlays.push({ values: line.map((v, i) => (dir[i] === 1 ? v : null)), color: "var(--up)", width: 1.6, label: "Supertrend (up)" }, { values: line.map((v, i) => (dir[i] === -1 ? v : null)), color: "var(--down)", width: 1.6, label: "Supertrend (down)" });
+      }
+      if (ui.psar) dots.push({ values: cut(a.psar), color: "var(--tx-2)" });
+      if (ui.ichi) bands.push({ upper: cut(a.ichi.span_a), lower: cut(a.ichi.span_b), color: "var(--teal)", opacity: 0.12 });
+      const markers = ui.pat ? a.patterns.filter((p) => p.index >= off).map((p) => ({ index: p.index - off, bias: p.bias, label: `${p.pattern} (${p.bias})` })) : [];
+      area.innerHTML = TA.candleChart(cs.slice(-VIEW), { w: 900, h: 340, ema: ui.ema, volume: ui.volume, overlays, bands, dots, markers });
+      if (readings) renderReadings();
+    };
+    const readings = host.querySelector(".readings");
+    let rTimer = 0;
+    const renderReadings = () => {
+      if (rTimer) return;
+      rTimer = setTimeout(() => { rTimer = 0; if (current() && lastA) readings.innerHTML = readingsHtml(lastA, cs, w, r.source === "demo"); }, readings.innerHTML ? 1000 : 0);
+    };
     const renderMeta = () => {
       const last = cs[cs.length - 1], dir = last.c >= last.o;
       const st = status === "live" ? `<span class="badge badge-info"><span class="dot dot-live"></span>${statusLabel[status]}</span>`
@@ -176,6 +203,7 @@
       cs = [...byT.values()].sort((a, b) => a.t - b.t).slice(-150);
     };
     draw(); renderMeta();
+    host._redraw = () => { if (current()) draw(); };
 
     // Live candle updates (browser provider only). After a reconnect, reconcile recent candles over REST.
     const h = TA.MarketData.streamCandles(w.symbol, w.market, ui.tf, (c) => {
@@ -216,10 +244,82 @@
       }, () => {})));
     }
   }
-  function chartPanel(title = "Primary chart") {
+  function chartPanel(title = "Primary chart", { withReadings = false } = {}) {
     return `<section class="card panel" data-chart>
       <div class="panel-head"><h2>${TA.icon("candles")}${title} <span class="muted chart-title" style="font-weight:500;font-size:.85rem"></span></h2>${chartControls()}</div>
-      <div class="chart-area"></div><div class="chart-meta" style="margin-top:10px"></div><div class="prem"></div></section>`;
+      <div class="chart-area"></div><div class="chart-meta" style="margin-top:10px"></div><div class="prem"></div></section>
+      ${withReadings ? `<section class="card panel readings" aria-live="off"></section>` : ""}`;
+  }
+
+  // ---------- Technical analysis (TA.Analysis twin of the backend library) ----------
+  const INTERVAL_MS = { "1m": 60e3, "5m": 300e3, "15m": 900e3, "1H": 3600e3, "4H": 14400e3, "1D": 86400e3 };
+  function analyse(cs, tf) {
+    const A = TA.Analysis, t = cs.map((c) => c.t), o = cs.map((c) => c.o), h = cs.map((c) => c.h), l = cs.map((c) => c.l), c = cs.map((x) => x.c), v = cs.map((x) => x.v);
+    return {
+      t, o, h, l, c, v,
+      sma20: A.sma(c, 20), sma50: A.sma(c, 50), ema20: A.ema(c, 20), wma20: A.wma(c, 20), vwma20: A.vwma(c, v, 20),
+      rsi: A.rsi(c), macd: A.macd(c), stoch: A.stochastic(h, l, c), cci: A.cci(h, l, c), mfi: A.mfi(h, l, c, v),
+      atr: A.atr(h, l, c), bb: A.bollinger(c), kc: A.keltner(h, l, c), adx: A.adx(h, l, c), st: A.supertrend(h, l, c),
+      ichi: A.ichimoku(h, l, c), psar: A.parabolicSar(h, l), obv: A.obv(c, v), vwap: A.vwap(t, h, l, c, v),
+      vp: A.volumeProfile(h, l, c, v), fib: A.fibonacci(h, l), piv: A.pivots(t, h, l, c, INTERVAL_MS[tf]),
+      patterns: A.detectCandlestickPatterns(o, h, l, c), formations: A.doubleTopsBottoms(h, l, c)
+    };
+  }
+  const lastOf = (arr) => (arr && arr.length ? arr[arr.length - 1] : null);
+  const fmtN = (v, d = 2) => (v == null || !Number.isFinite(v) ? "—" : Math.abs(v) >= 1e6 ? TA.fmtCompact(v) : v.toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d }));
+  const term = (label, tip) => `<span class="term" tabindex="0" data-tip="${tip}">${label}</span>`;
+
+  /** Plain-language, descriptive readings. No buy/sell language — these describe the chart, they don't predict it. */
+  function readingsHtml(a, cs, w, demo) {
+    const px = lastOf(a.c), P = TA.fmtPrice;
+    const rsi = lastOf(a.rsi), adx = lastOf(a.adx.adx), pdi = lastOf(a.adx.plus_di), mdi = lastOf(a.adx.minus_di), stK = lastOf(a.stoch.k), stD = lastOf(a.stoch.d);
+    const m = lastOf(a.macd.macd), ms = lastOf(a.macd.signal), mh = lastOf(a.macd.histogram), stDir = lastOf(a.st.direction);
+    const pos = (v, ref) => (v == null || ref == null ? "" : px > ref ? "price above" : px < ref ? "price below" : "price at");
+    const zone = (v, lo, hi, loTxt, hiTxt) => (v == null ? "warming up" : v >= hi ? hiTxt : v <= lo ? loTxt : "middle range");
+    const row = (name, tip, value, note) => `<tr><th scope="row">${term(name, tip)}</th><td class="r num">${value}</td><td class="muted">${note}</td></tr>`;
+    const group = (title, rows) => `<h3 style="font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--tx-3);margin:18px 0 8px">${title}</h3><div class="table-wrap"><table><tbody>${rows.join("")}</tbody></table></div>`;
+    const recent = a.patterns.filter((p) => p.index >= cs.length - 30).slice(-12).reverse();
+    const biasBadge = (b) => b === "bullish" ? `<span class="badge badge-long">${TA.icon("arrowUp", "icon-sm")}Bullish context</span>` : b === "bearish" ? `<span class="badge badge-short">${TA.icon("arrowDown", "icon-sm")}Bearish context</span>` : `<span class="badge badge-none">${TA.icon("minus", "icon-sm")}Neutral</span>`;
+    const fib = a.fib, piv = a.piv, vp = a.vp;
+    return `<div class="panel-head" style="margin-bottom:4px"><h2>${TA.icon("gauge")}Indicator readings <span class="muted" style="font-weight:500;font-size:.85rem">· ${w.symbol} · ${ui.tf} · last ${cs.length} candles</span></h2>${demo ? '<span class="badge badge-demo">Sample data</span>' : ""}</div>
+      <p class="muted" style="font-size:.8rem;margin:0">Calculated in your browser from the candles above. They describe past price action. They are context, not predictions or advice.</p>
+      ${group("Trend", [
+        row("SMA 20 / 50", "Simple moving averages of the last 20 and 50 closes.", `${fmtN(lastOf(a.sma20))} / ${fmtN(lastOf(a.sma50))}`, `${pos(px, lastOf(a.sma50))} SMA 50`),
+        row("EMA 20", "Exponential moving average, weighted toward recent closes.", fmtN(lastOf(a.ema20)), pos(px, lastOf(a.ema20)) + " EMA 20"),
+        row("WMA 20 / VWMA 20", "Linearly weighted and volume-weighted 20-period averages.", `${fmtN(lastOf(a.wma20))} / ${fmtN(lastOf(a.vwma20))}`, ""),
+        row("ADX 14 (+DI / −DI)", "ADX measures trend strength (not direction). Above ~25 is often read as a trending market; +DI vs −DI shows which side has been stronger.", `${fmtN(adx, 1)} (${fmtN(pdi, 1)} / ${fmtN(mdi, 1)})`, adx == null ? "warming up" : `${adx >= 25 ? "strong" : adx >= 20 ? "moderate" : "weak"} trend strength · ${pdi > mdi ? "+DI above −DI" : "−DI above +DI"}`),
+        row("Supertrend (10, 3)", "ATR-based trailing line; its side flips when a close crosses it.", fmtN(lastOf(a.st.supertrend)), stDir == null ? "warming up" : stDir === 1 ? "line below price (up state)" : "line above price (down state)"),
+        row("Parabolic SAR", "Trailing dots that switch side when price crosses them.", fmtN(lastOf(a.psar)), lastOf(a.psar) == null ? "" : lastOf(a.psar) < px ? "below price" : "above price"),
+        row("Ichimoku (tenkan / kijun)", "Midpoints of the 9- and 26-bar ranges.", `${fmtN(lastOf(a.ichi.tenkan))} / ${fmtN(lastOf(a.ichi.kijun))}`, (() => { const sa = lastOf(a.ichi.span_a), sb = lastOf(a.ichi.span_b); if (sa == null || sb == null) return "cloud warming up (needs 78 bars)"; return px > Math.max(sa, sb) ? "price above the cloud" : px < Math.min(sa, sb) ? "price below the cloud" : "price inside the cloud"; })())
+      ])}
+      ${group("Momentum", [
+        row("RSI 14", "Relative Strength Index (0–100). Above 70 and below 30 are commonly called overbought / oversold zones.", fmtN(rsi, 1), zone(rsi, 30, 70, "at/below 30 (oversold zone)", "at/above 70 (overbought zone)")),
+        row("MACD (12, 26, 9)", "EMA12 − EMA26, its 9-period signal line, and the histogram (difference).", `${fmtN(m, 4)} / ${fmtN(ms, 4)}`, mh == null ? "warming up" : `histogram ${mh >= 0 ? "positive" : "negative"} (${fmtN(mh, 4)})`),
+        row("Stochastic (14, 3, 3)", "Where the close sits in the 14-bar range (0–100), smoothed.", `${fmtN(stK, 1)} / ${fmtN(stD, 1)}`, zone(stK, 20, 80, "at/below 20", "at/above 80")),
+        row("CCI 20", "Distance of typical price from its average, in units of mean deviation.", fmtN(lastOf(a.cci), 1), zone(lastOf(a.cci), -100, 100, "below −100", "above +100")),
+        row("MFI 14", "Volume-weighted RSI using typical price.", fmtN(lastOf(a.mfi), 1), zone(lastOf(a.mfi), 20, 80, "at/below 20", "at/above 80"))
+      ])}
+      ${group("Volatility", [
+        row("ATR 14", "Average True Range: typical bar size including gaps, in price units.", fmtN(lastOf(a.atr), 4), lastOf(a.atr) == null ? "" : `${((lastOf(a.atr) / px) * 100).toFixed(2)}% of price`),
+        row("Bollinger (20, 2)", "20-period SMA ± 2 standard deviations.", `${fmtN(lastOf(a.bb.lower))} – ${fmtN(lastOf(a.bb.upper))}`, lastOf(a.bb.upper) == null ? "" : px > lastOf(a.bb.upper) ? "close above upper band" : px < lastOf(a.bb.lower) ? "close below lower band" : "inside the bands"),
+        row("Keltner (20, 2, ATR 10)", "EMA 20 ± 2 × ATR 10.", `${fmtN(lastOf(a.kc.lower))} – ${fmtN(lastOf(a.kc.upper))}`, "")
+      ])}
+      ${group("Volume", [
+        row("VWAP (UTC day)", "Volume-weighted average price since 00:00 UTC today.", fmtN(lastOf(a.vwap)), pos(px, lastOf(a.vwap)) + " VWAP"),
+        row("OBV", "On-Balance Volume: running total of volume, added on up closes and subtracted on down closes.", fmtN(lastOf(a.obv), 0), "trend of this line matters more than its level"),
+        row("Volume profile POC", "Price level with the most traded volume in view (24 bins); value area holds 70% of volume.", fmtN(vp.poc), vp.poc == null ? "" : `value area ${fmtN(vp.value_area_low)} – ${fmtN(vp.value_area_high)}`)
+      ])}
+      ${group("Levels", [
+        row("Pivots (classic)", `Floor pivots from the ${piv ? piv.basis : "previous period"}.`, piv ? fmtN(piv.p) : "—", piv ? `R1 ${fmtN(piv.r1)} · S1 ${fmtN(piv.s1)} · R2 ${fmtN(piv.r2)} · S2 ${fmtN(piv.s2)}` : "needs the previous UTC day in view"),
+        row("Fibonacci retracement", "Ratios between the highest high and lowest low in view.", fib ? `${fmtN(fib.swing_low)} – ${fmtN(fib.swing_high)}` : "—", fib ? `${fib.direction} move · 38.2% ${fmtN(fib.levels["0.382"])} · 50% ${fmtN(fib.levels["0.5"])} · 61.8% ${fmtN(fib.levels["0.618"])}` : "")
+      ])}
+      <h3 style="font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--tx-3);margin:18px 0 8px">Candlestick patterns · last 30 candles</h3>
+      ${recent.length ? `<ul class="list-signals" style="list-style:none;margin:0;padding:0">${recent.map((p) => `<li class="sig-row" style="cursor:default">${biasBadge(p.bias)}<span><b>${p.pattern}</b><br/><span class="muted" style="font-size:.8rem">${p.candles.length} candle${p.candles.length > 1 ? "s" : ""} · ${TA.fmtTime(a.t[p.index])}</span></span><span class="muted" style="font-size:.78rem">${((n) => (n === 0 ? "current candle" : n === 1 ? "1 bar ago" : `${n} bars ago`))(cs.length - 1 - p.index)}</span></li>`).join("")}</ul>`
+        : `<p class="muted" style="font-size:.86rem">No patterns in the last 30 candles.</p>`}
+      <h3 style="font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--tx-3);margin:18px 0 8px">Chart formations</h3>
+      ${a.formations.length ? `<ul style="margin:0;padding-left:18px;font-size:.88rem;color:var(--tx-2)">${a.formations.slice(-5).map((f) => `<li>${f.formation} · neckline ${fmtN(f.neckline)} · <b>${f.status}</b> · peaks ${TA.fmtTime(a.t[f.points[0]])} and ${TA.fmtTime(a.t[f.points[2]])}</li>`).join("")}</ul>`
+        : `<p class="muted" style="font-size:.86rem">No double tops or bottoms in view.</p>`}
+      <p class="muted" style="font-size:.76rem;margin:14px 0 0">The current candle is still forming, so its patterns and readings can change until it closes. Formulas: see the project README and <code>backend/app/analysis</code>.</p>`;
   }
 
   // ---------- Views ----------
@@ -280,7 +380,7 @@
       draw();
     },
 
-    chart(el) { el.innerHTML = chartPanel("Advanced chart") + `<div class="integration">${TA.icon("info", "icon-sm")}<span>Live candles update over a public WebSocket. Drawing tools, symbol search and level overlays come in later milestones.</span></div>`; loadChart(el.querySelector("[data-chart]")); },
+    chart(el) { el.innerHTML = `<div class="chart-wrap">${chartPanel("Advanced chart", { withReadings: true })}</div>`; loadChart(el.querySelector(".chart-wrap")); },
 
     history(el) {
       el.innerHTML = `<div class="grid-dash">
@@ -379,9 +479,9 @@
     if (t.dataset.act === "demo-on") { demoToggle.checked = true; store.demo = true; renderConn(); route(); }
     else if (t.dataset.act === "retry") route();
     else if (t.dataset.tf || t.dataset.ind) {
-      const panel = t.closest("[data-chart]");
+      const panel = t.closest(".chart-wrap") || t.closest("[data-chart]");
       if (t.dataset.tf) { ui.tf = t.dataset.tf; panel.querySelectorAll("[data-tf]").forEach((b) => b.setAttribute("aria-pressed", b === t)); }
-      else { ui[t.dataset.ind] = !ui[t.dataset.ind]; t.setAttribute("aria-pressed", ui[t.dataset.ind]); }
+      else { ui[t.dataset.ind] = !ui[t.dataset.ind]; t.setAttribute("aria-pressed", ui[t.dataset.ind]); if (panel._redraw) { panel._redraw(); return; } }
       loadChart(panel);
     } else if (t.dataset.sig) {
       const s = lastSignals.find((x) => x.id === t.dataset.sig);
@@ -389,7 +489,7 @@
     }
   });
   document.addEventListener("change", (e) => {
-    if (e.target.matches("[data-sym]")) { ui.sym = +e.target.value; loadChart(e.target.closest("[data-chart]")); }
+    if (e.target.matches("[data-sym]")) { ui.sym = +e.target.value; loadChart(e.target.closest(".chart-wrap") || e.target.closest("[data-chart]")); }
   });
   document.addEventListener("keydown", (e) => {
     const t = e.target.closest && e.target.closest('[data-sig][role="button"]');

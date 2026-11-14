@@ -86,34 +86,68 @@
       </div>`;
   };
 
-  // Candlestick SVG with optional EMA + volume. Pure function of the candles passed in.
-  // range: optional fixed [lo, hi] price scale so live redraws don't rescale/jump.
-  TA.candleChart = (cs, { w = 800, h = 320, ema = true, volume = true, grid = true, cls = "", range = null } = {}) => {
+  // Candlestick SVG with optional EMA, volume and analysis overlays. Pure function of its inputs.
+  // overlays: [{ values, color, width?, dash?, label }]  — arrays aligned with cs (null = gap)
+  // bands:    [{ upper, lower, color }]                  — filled area between two aligned arrays
+  // dots:     [{ values, color }]                        — e.g. Parabolic SAR
+  // markers:  [{ index, bias, label }]                   — pattern markers (▲ bullish, ▼ bearish, ◆ neutral)
+  TA.candleChart = (cs, { w = 800, h = 320, ema = true, volume = true, grid = true, cls = "", range = null, overlays = [], bands = [], dots = [], markers = [] } = {}) => {
     if (!cs || !cs.length) return "";
     const padR = 54, padB = 22, volH = volume ? 46 : 0;
-    const [lo, hi] = range || [Math.min(...cs.map((c) => c.l)), Math.max(...cs.map((c) => c.h))];
+    let lo, hi;
+    if (range) [lo, hi] = range;
+    else {
+      lo = Math.min(...cs.map((c) => c.l)); hi = Math.max(...cs.map((c) => c.h));
+      const extra = [...overlays.map((o) => o.values), ...bands.flatMap((b) => [b.upper, b.lower]), ...dots.map((d) => d.values)];
+      extra.forEach((arr) => arr.forEach((v) => { if (v != null && Number.isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } }));
+    }
     const ch = h - padB - volH - 10;
-    const y = (v) => 8 + ((hi - v) / (hi - lo)) * (ch - 8);
+    const y = (v) => 8 + ((hi - v) / (hi - lo || 1)) * (ch - 8);
     const step = (w - padR) / cs.length, bw = Math.max(2, step * 0.6);
-    const vmax = Math.max(...cs.map((c) => c.v));
+    const xAt = (i) => i * step + step / 2;
+    const vmax = Math.max(...cs.map((c) => c.v)) || 1;
+    const path = (arr) => {
+      let d = "", pen = false;
+      arr.forEach((v, i) => { if (v == null || !Number.isFinite(v)) { pen = false; return; } d += `${pen ? "L" : "M"}${xAt(i).toFixed(1)},${y(v).toFixed(1)}`; pen = true; });
+      return d;
+    };
     let out = "";
     if (grid) for (let i = 0; i <= 4; i++) {
       const v = lo + ((hi - lo) * i) / 4, yy = y(v);
       out += `<line class="gl" x1="0" x2="${w - padR}" y1="${yy}" y2="${yy}"/><text class="ax" x="${w - padR + 6}" y="${yy + 3}">${v >= 1000 ? v.toFixed(0) : v >= 10 ? v.toFixed(2) : v.toFixed(4)}</text>`;
     }
+    bands.forEach((b) => {
+      // one polygon per contiguous run where both edges exist
+      let run = [];
+      const flush = () => {
+        if (run.length > 1) out += `<polygon points="${run.map((i) => `${xAt(i).toFixed(1)},${y(b.upper[i]).toFixed(1)}`).concat(run.slice().reverse().map((i) => `${xAt(i).toFixed(1)},${y(b.lower[i]).toFixed(1)}`)).join(" ")}" fill="${b.color}" opacity="${b.opacity ?? 0.1}" stroke="none"/>`;
+        run = [];
+      };
+      cs.forEach((_, i) => { if (b.upper[i] != null && b.lower[i] != null) run.push(i); else flush(); });
+      flush();
+    });
     cs.forEach((c, i) => {
-      const x = i * step + step / 2, up = c.c >= c.o, col = up ? "var(--up)" : "var(--down)";
+      const x = xAt(i), up = c.c >= c.o, col = up ? "var(--up)" : "var(--down)";
       out += `<g class="candle${i === cs.length - 1 ? " candle-last" : ""}" style="--i:${i}"><line x1="${x}" x2="${x}" y1="${y(c.h)}" y2="${y(c.l)}" stroke="${col}" stroke-width="1"/>
         <rect x="${x - bw / 2}" y="${y(Math.max(c.o, c.c))}" width="${bw}" height="${Math.max(1, Math.abs(y(c.o) - y(c.c)))}" fill="${col}" rx="1" opacity="${up ? 0.9 : 0.85}"/></g>`;
       if (volume) out += `<rect class="vol" style="--i:${i}" x="${x - bw / 2}" y="${h - padB - (c.v / vmax) * volH}" width="${bw}" height="${(c.v / vmax) * volH}" fill="${col}" opacity="0.22"/>`;
     });
+    overlays.forEach((o) => { const d = path(o.values); if (d) out += `<path d="${d}" fill="none" stroke="${o.color}" stroke-width="${o.width || 1.4}" ${o.dash ? `stroke-dasharray="${o.dash}"` : ""} stroke-linejoin="round"><title>${o.label || ""}</title></path>`; });
+    dots.forEach((d) => d.values.forEach((v, i) => { if (v != null) out += `<circle cx="${xAt(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="1.6" fill="${d.color}"/>`; }));
     if (ema) {
       let e = cs[0].c; const k = 2 / 21;
-      const pts = cs.map((c, i) => { e = c.c * k + e * (1 - k); return `${(i * step + step / 2).toFixed(1)},${y(e).toFixed(1)}`; });
+      const pts = cs.map((c, i) => { e = c.c * k + e * (1 - k); return `${xAt(i).toFixed(1)},${y(e).toFixed(1)}`; });
       out += `<polyline class="draw" style="--len:2400" points="${pts.join(" ")}" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"/>`;
       const last = pts[pts.length - 1].split(",");
       out += `<circle class="ema-dot" cx="${last[0]}" cy="${last[1]}" r="3" fill="var(--accent)"/>`;
     }
-    return `<svg class="${cls}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Candlestick chart${ema ? " with 20-period EMA" : ""}">${out}</svg>`;
+    markers.forEach((m) => {
+      const c = cs[m.index]; if (!c) return;
+      const x = xAt(m.index), bull = m.bias === "bullish", bear = m.bias === "bearish";
+      const yy = bull ? y(c.l) + 10 : y(c.h) - 10, col = bull ? "var(--up)" : bear ? "var(--down)" : "var(--tx-2)";
+      const shape = bull ? `M${x - 4},${yy + 4}L${x + 4},${yy + 4}L${x},${yy - 3}Z` : bear ? `M${x - 4},${yy - 4}L${x + 4},${yy - 4}L${x},${yy + 3}Z` : `M${x},${yy - 4}L${x + 4},${yy}L${x},${yy + 4}L${x - 4},${yy}Z`;
+      out += `<path d="${shape}" fill="${col}" opacity="0.9"><title>${TA.esc(m.label)}</title></path>`;
+    });
+    return `<svg class="${cls}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Candlestick chart${ema ? " with 20-period EMA" : ""}${overlays.length ? ", " + overlays.map((o) => o.label).join(", ") : ""}">${out}</svg>`;
   };
 })();
