@@ -30,7 +30,7 @@
     { id: "risk", label: "Risk manager", icon: "gauge", ready: true },
     { group: "Settings" },
     { id: "alerts", label: "Alerts", icon: "bell", ready: true },
-    { id: "account", label: "Account", icon: "user" },
+    { id: "account", label: "Account", icon: "user", ready: true },
     { id: "billing", label: "Billing", icon: "card", ready: true }
   ];
   const byId = Object.fromEntries(ROUTES.filter((r) => r.id).map((r) => [r.id, r]));
@@ -379,8 +379,10 @@
         ? state("off", "No signal feed", "Signals appear here once an approved signal backend is connected.", demoBtn)
         : fromResult(sig, "Signals", (d) => d.map((s) => `<button class="sig-row" data-sig="${s.id}">${TA.dirBadge(s.direction)}<span><b>${TA.esc(s.symbol)}</b><br/><span class="muted" style="font-size:.8rem">${s.timeframe} · ${TA.lifeLabel[s.lifecycle]}</span></span><span class="muted" style="font-size:.78rem">${TA.ago(s.createdAt)}</span></button>`).join("") + (sig.source === "demo" ? `<p class="demo-stamp" style="margin:4px 0 0">${TA.icon("flask", "icon-sm")}Illustrative examples</p>` : ""));
       const u = use.data;
-      $("#usageTxt", el).innerHTML = u.used == null ? `— <span class="muted" style="font-size:.85rem">of ${u.limit}</span>` : `${u.used} <span class="muted" style="font-size:.85rem">of ${u.limit} used${use.source === "demo" ? " (sample)" : ""}</span>`;
-      $("#usageBar", el).innerHTML = Array.from({ length: u.limit }, (_, i) => `<i class="${u.used != null && i < u.used ? "used" : ""}"></i>`).join("");
+      $("#usageTxt", el).innerHTML = u.signedOut ? `<a href="#/account" style="font-size:1rem">Sign in</a> <span class="muted" style="font-size:.85rem">· ${u.limit} free</span>`
+        : u.limit == null ? `Unlimited <span class="muted" style="font-size:.85rem">(${TA.esc(u.plan || "")})</span>`
+        : u.used == null ? `— <span class="muted" style="font-size:.85rem">of ${u.limit}</span>` : `${u.used} <span class="muted" style="font-size:.85rem">of ${u.limit} used${use.source === "demo" ? " (sample)" : ""}</span>`;
+      $("#usageBar", el).innerHTML = Array.from({ length: u.limit || 0 }, (_, i) => `<i class="${u.used != null && i < u.used ? "used" : ""}"></i>`).join("");
     },
 
     async markets(el) {
@@ -582,6 +584,52 @@
       every(30000, load);
     },
 
+    async account(el) {
+      if (!TA.Auth.available()) { el.innerHTML = `<section class="card">${state("off", "Accounts need the TRADE-AI server", "Set <code>api.backendBaseUrl</code> in <code>config.js</code>.")}</section>`; return; }
+      const user = await TA.Auth.me();
+      if (!el.isConnected) return;
+      if (user) {
+        const u = user.usage;
+        el.innerHTML = `<div class="grid-dash"><section class="card panel span-6"><div class="panel-head"><h2>${TA.icon("user")}Your account</h2><span class="badge">${u.plan === "trial" ? "Free trial" : TA.esc(u.plan)}</span></div>
+          <dl class="detail-grid" style="grid-template-columns:1fr 1fr;margin:0 0 16px">
+            <div class="level" style="grid-column:1/-1"><dt>Email</dt><dd style="font-family:var(--font-sans)">${TA.esc(user.email)}</dd></div>
+            <div class="level"><dt>Trial signals used</dt><dd>${u.limit == null ? "Unlimited" : `${u.used} of ${u.limit}`}</dd></div>
+            <div class="level"><dt>Member since</dt><dd style="font-family:var(--font-sans)">${TA.fmtTime(user.created_at)}</dd></div></dl>
+          <button class="btn" id="signout">${TA.icon("logout", "icon-sm")}Sign out</button></section>
+          <section class="card panel span-6"><h2 style="font-size:1rem">${TA.icon("info")}How the trial works</h2>
+          <ul style="margin:0;padding-left:18px;font-size:.88rem;color:var(--tx-2);display:grid;gap:4px">
+            <li>While a signal is live, its entry, stop and targets are hidden. Unlocking one uses one of your ${C.pricing.trialSignals} free trial signals.</li>
+            <li>Opening a signal you already unlocked again is free. Finished signals are shown in full to everyone.</li>
+            <li>Signals are experimental analysis, not advice. TRADE-AI never places trades.</li></ul></section></div>`;
+        $("#signout", el).addEventListener("click", () => { TA.Auth.signOut(); TA.toast("Signed out.", "info"); route(); });
+        return;
+      }
+      let mode = "login";
+      const draw = () => {
+        el.innerHTML = `<section class="card panel" style="max-width:520px"><div class="panel-head"><h2>${TA.icon("user")}${mode === "login" ? "Sign in" : "Create your free account"}</h2></div>
+          <p class="muted" style="margin:0 0 14px;font-size:.88rem">${mode === "login" ? "Sign in to unlock signals." : `Start the free trial: unlock ${C.pricing.trialSignals} live signals. No card needed.`}</p>
+          <form class="auth-form" id="authForm" novalidate>
+            <div class="field"><label for="em">Email</label><input id="em" type="email" autocomplete="email" required /></div>
+            <div class="field"><label for="pw">Password</label><input id="pw" type="password" minlength="8" autocomplete="${mode === "login" ? "current-password" : "new-password"}" required /><span class="hint">At least 8 characters.</span></div>
+            <span class="err" id="authErr" role="alert"></span>
+            <button class="btn btn-primary" type="submit">${mode === "login" ? "Sign in" : "Create account"}</button>
+          </form>
+          <p style="margin:14px 0 0;font-size:.88rem">${mode === "login" ? "No account yet?" : "Already have one?"} <a href="#" id="swap">${mode === "login" ? "Create one" : "Sign in"}</a></p></section>`;
+        $("#swap", el).addEventListener("click", (e) => { e.preventDefault(); mode = mode === "login" ? "register" : "login"; draw(); });
+        $("#authForm", el).addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const btn = e.target.querySelector("button"); btn.disabled = true;
+          const r = await TA.Auth.submit(mode, $("#em", el).value.trim(), $("#pw", el).value);
+          btn.disabled = false;
+          if (!r.ok) { $("#authErr", el).textContent = r.error; return; }
+          TA.toast(mode === "login" ? "Signed in." : "Account created. Your free trial has started.", "success");
+          location.hash = sessionStorage.getItem("ta-after-auth") || "#/signals";
+          sessionStorage.removeItem("ta-after-auth");
+        });
+      };
+      draw();
+    },
+
     billing(el) {
       const P = C.pricing;
       el.innerHTML = `<div class="grid-dash"><section class="card panel span-6"><div class="panel-head"><h2>${TA.icon("card")}Plan</h2><span class="badge">Trial</span></div>
@@ -600,7 +648,6 @@
     scanner: ["Market scanner", "Filter pairs by structure, momentum and volume. Needs the market data backend and a scanning service."],
     patterns: ["Pattern & SMC analysis", "Detected patterns, order blocks and liquidity zones, each with the reasoning behind it. Needs an approved analysis service."],
     futures: ["Futures intelligence", "Funding, open interest and liquidation context for perpetual contracts. Needs a derivatives data source."],
-    account: ["Account", "Profile, security and preferences. Sign-in isn't connected yet."]
   };
   Object.keys(soonCopy).forEach((id) => (views[id] = (el) => {
     const [t, d] = soonCopy[id];
@@ -628,7 +675,7 @@
 
   // ---------- Delegated actions ----------
   document.addEventListener("click", (e) => {
-    const t = e.target.closest("[data-act],[data-tf],[data-ind],[data-sig]");
+    const t = e.target.closest("[data-unlock],[data-act],[data-tf],[data-ind],[data-sig]");
     if (!t) return;
     if (t.dataset.act === "demo-on") { demoToggle.checked = true; store.demo = true; renderConn(); route(); }
     else if (t.dataset.act === "retry") route();
@@ -637,6 +684,21 @@
       if (t.dataset.tf) { ui.tf = t.dataset.tf; panel.querySelectorAll("[data-tf]").forEach((b) => b.setAttribute("aria-pressed", b === t)); }
       else { ui[t.dataset.ind] = !ui[t.dataset.ind]; t.setAttribute("aria-pressed", ui[t.dataset.ind]); if (panel._redraw) { panel._redraw(); return; } }
       loadChart(panel);
+    } else if (t.dataset.unlock) {
+      e.stopPropagation();
+      const id = t.dataset.unlock;
+      if (!TA.Auth.signedIn()) { TA.modal.close && TA.modal.close(); sessionStorage.setItem("ta-after-auth", location.hash); location.hash = "#/account"; return; }
+      t.disabled = true;
+      TA.Signals.unlock(id).then((r) => {
+        t.disabled = false;
+        if (r.needsAuth) { sessionStorage.setItem("ta-after-auth", location.hash); location.hash = "#/account"; return; }
+        if (!r.ok) { TA.toast(r.status === 402 ? "Your free trial signals are used up. Subscriptions aren't available yet." : `Couldn't unlock: ${r.error}`, "error"); return; }
+        const i = lastSignals.findIndex((x) => x.id === id);
+        if (i >= 0) lastSignals[i] = r.signal;
+        TA.toast(r.usage.limit == null ? "Unlocked." : `Unlocked. ${r.usage.remaining} trial signal${r.usage.remaining === 1 ? "" : "s"} left.`, "success");
+        if (document.querySelector(".modal-body .detail")) TA.modal.open(TA.signalDetail(r.signal));
+        route();
+      });
     } else if (t.dataset.sig) {
       const s = lastSignals.find((x) => x.id === t.dataset.sig);
       if (s) {

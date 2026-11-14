@@ -168,3 +168,9 @@ h3 { font-size: 1.15rem; font-weight: 600; }
   *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
   .js-motion .reveal { opacity: 1; transform: none; }
 }
+
+/* Milestone 7: locked trade levels */
+.locked-levels { border: 1px dashed var(--line, rgba(145,163,176,.3)); border-radius: 12px; padding: 14px; background: rgba(54,214,231,.04); }
+.locked-levels .icon-sm { vertical-align: -2px; }
+.auth-form { display: grid; gap: 12px; max-width: 380px; }
+.auth-form .err { color: var(--neg, #F16B75); font-size: .85rem; min-height: 1em; }

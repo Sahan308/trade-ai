@@ -5,6 +5,7 @@
   // ---- Icon set (single consistent 24px stroke style) ----
   const P = {
     logo: '<path d="M4 17l5-5 4 3 7-8"/><path d="M15 7h5v5"/>',
+    lock: '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
     menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
     close: '<path d="M6 6l12 12M18 6L6 18"/>',
     plus: '<path d="M12 5v14M5 12h14"/>',

@@ -9,7 +9,9 @@
   TA.signalCard = (s) => {
     const isDemo = s.source === "demo";
     const lv = (k, v) => `<div class="level"><dt>${k}</dt><dd>${v}</dd></div>`;
-    const levels = s.entry
+    const levels = s.locked
+      ? TA.lockedLevels(s)
+      : s.entry
       ? `<dl class="signal-levels">
           ${lv("Entry zone", `${TA.fmtPrice(s.entry[0])} – ${TA.fmtPrice(s.entry[1])}`)}
           ${lv("Stop", TA.fmtPrice(s.stop))}
@@ -40,6 +42,10 @@
       </article>`;
   };
 
+  TA.lockedLevels = (s) => `<div class="locked-levels">
+      <p style="margin:0 0 10px;font-size:.88rem">${TA.icon("lock", "icon-sm")} Entry, stop and targets are hidden.</p>
+      <button class="btn btn-primary btn-sm" data-unlock="${s.id}">${TA.Auth && TA.Auth.signedIn() ? "Unlock · uses 1 trial signal" : "Sign in to unlock"}</button></div>`;
+
   TA.signalDetail = (s) => {
     const isDemo = s.source === "demo";
     const cell = (k, v) => `<div class="level"><dt>${k}</dt><dd>${v}</dd></div>`;
@@ -59,13 +65,13 @@
           <div class="lifecycle" role="list">${TA.Signals.LIFECYCLE.map((l) => `<span role="listitem" class="${l === s.lifecycle ? "on" : ""}" ${l === s.lifecycle ? 'aria-current="step"' : ""}>${lifeLabel[l]}</span>`).join("")}</div>
         </div>
 
-        <dl class="detail-grid" style="margin:0">
+        ${s.locked ? TA.lockedLevels(s) : `<dl class="detail-grid" style="margin:0">
           ${cell("Entry zone", s.entry ? `${TA.fmtPrice(s.entry[0])} – ${TA.fmtPrice(s.entry[1])}` : "—")}
           ${cell("Stop-loss", TA.fmtPrice(s.stop))}
           ${cell("Target 1", TA.fmtPrice(s.targets[0]))}
           ${cell("Target 2", TA.fmtPrice(s.targets[1]))}
         </dl>
-        <div class="level"><dt><span class="term" tabindex="0" data-tip="The condition that proves the idea wrong. If it happens, the setup is void even before the stop is hit.">Invalidation</span></dt><dd style="font-family:var(--font-sans)">${TA.esc(s.invalidation)}</dd></div>
+        <div class="level"><dt><span class="term" tabindex="0" data-tip="The condition that proves the idea wrong. If it happens, the setup is void even before the stop is hit.">Invalidation</span></dt><dd style="font-family:var(--font-sans)">${TA.esc(s.invalidation)}</dd></div>`}
 
         ${s.explanation ? `<p style="margin:0;font-size:.9rem">${TA.esc(s.explanation)}</p>` : ""}
         ${s.rrNet != null ? `<dl class="detail-grid" style="margin:0">
