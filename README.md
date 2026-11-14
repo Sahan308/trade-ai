@@ -17,6 +17,7 @@ Live site (static frontend): https://sahan308.github.io/trade-ai/
       providers/hyperliquid.js  Futures fallback adapter (used only when Binance Futures is blocked/unreachable)
       services/                 marketData.js, signals.js, health.js — what the UI calls
       analysis/ta.js            Indicators, candlestick patterns, formations (JS twin of backend/app/analysis)
+      analysis/smc.js           Smart Money Concepts (JS twin of backend/app/analysis/smc.py)
       fixtures/demo.js          Isolated, labelled sample data (demo mode only)
     backend/                    FastAPI service (Milestone 1)
       app/main.py               App factory: CORS allowlist, request IDs, security headers, error handlers
@@ -29,7 +30,11 @@ Live site (static frontend): https://sahan308.github.io/trade-ai/
       app/api/streams.py        /ws/chart and /ws/market endpoints
       app/services/candles.py   Candle validation (malformed rows, duplicates, gaps)
       app/analysis/             indicators.py, patterns.py, summary.py: formulas documented in docstrings
+      app/analysis/smc.py       BOS/CHOCH, order blocks, FVGs, liquidity & sweeps, premium/discount, inducement
+      app/signals/              strategy.py (versioned configs), engine.py (pipeline), store.py (insert-only persistence)
+      app/scan.py               Scanner: python -m app.scan [--loop SECONDS] [--profile day|swing|scalp]
       app/api/analysis.py       /api/analysis and /api/patterns
+      app/api/signals.py        /api/signals, /api/signals/history, /api/signals/{id}
       app/ratelimit.py          Per-IP rate limit (in-memory, or Redis when TRADEAI_REDIS_URL is set)
       scripts/smoke_live.py     Live check against real public data (used in CI)
       app/errors.py             Consistent JSON error envelope
@@ -124,6 +129,30 @@ All browsers watching the same stream share one upstream connection. The hub rec
 | `GET /api/analysis/{symbol}?market&interval&limit=60..1000` | Latest readings for every indicator, volume profile, Fibonacci, pivots, patterns in the last 30 candles, formations, swing points |
 | `GET /api/patterns/{symbol}?market&interval&window&bias=bullish\|bearish\|neutral` | Candlestick patterns (with the indices of the candles that triggered them) and chart formations |
 
+### Signal endpoints
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/signals?symbol&side=LONG\|SHORT&limit` | Recent LONG/SHORT signals |
+| `GET /api/signals/history?offset&limit&side` | Every stored evaluation, including NO TRADE, newest first, with a total count |
+| `GET /api/signals/{id}` | One signal with all its evidence, assumptions and the strategy-config snapshot |
+
+Signals are created by the scanner, not by API calls.
+
+## Signal engine (Milestone 4)
+
+Strategy **`smc_trend_pullback` v1.0.0**, with `day` (1H, context from 4H), `swing` (4H/1D) and `scalp` (15m/1H) profiles kept as separate versioned configs in `app/signals/strategy.py`.
+
+1. **Data checks:** only closed candles are used. The engine needs at least 200 bars, rejects data more than 2 intervals old, and allows at most 2 missing candles. Any failure → NO TRADE.
+2. **Regime:** `volatile` (ATR above 6% of price), `trending_up/down` (ADX ≥ 20, EMA 50 sloping, price on the matching side) or `ranging`. Volatile and ranging → NO TRADE.
+3. **Rules:** SMC structure must agree with the regime. There must be an unbroken order block or unfilled fair value gap from the last 60 bars within 1.5 ATR of price. Entry = that zone; stop = zone edge ± 0.25 ATR; targets = resting liquidity (at least 0.5R apart), topped up with 2R/3R/4R.
+4. **Evidence:** weighted supporting and conflicting factors: regime, structure, zone, higher-timeframe trend, premium/discount, liquidity sweeps, inducement, RSI, MACD, break volume, candlestick patterns, confirmed formations, and Futures funding.
+5. **Reward:risk:** net to TP1 after assumed fees and slippage (spot 0.10% and futures 0.05% fee per side, 0.05% slippage per side) must be ≥ 1.5.
+6. **Output:** LONG, SHORT or NO TRADE. The heuristic score is supporting minus conflicting weights (0–100, minimum 60). **It is not a win probability and has not been validated.**
+7. **Persistence:** stored with its evidence, assumptions, the full config snapshot and its hash. A unique fingerprint (symbol, market, timeframe, side, strategy version, zone candle) means the same setup is stored once. Rows are **immutable**: only `lifecycle` may change later. The database enforces this, so strategy changes never rewrite old signals.
+
+NO TRADE is an ordinary result. On the 238 synthetic test series, the engine produced 4 signals and 234 NO TRADEs. No accuracy is claimed until Milestone 6 measures outcomes.
+
 ## Technical analysis
 
 One library, written twice: `backend/app/analysis` (Python, for the API and the future signal engine) and `assets/js/analysis/ta.js` (so the static site can show readings without a backend). `tests/test_parity.py` runs both on the same candles and fails if any output differs, including the pattern hits.
@@ -159,7 +188,7 @@ One library, written twice: `backend/app/analysis` (Python, for the API and the 
 | 1. Foundation — structure, config, API skeleton, `/health`, DB + migrations, app shell, docs, tests | **Implemented** (see "Verification") |
 | 2. Real market data (public Binance Spot/Futures, WebSockets, freshness, reconciliation) | **Implemented**: browser and backend adapters, backend WebSocket hub, Futures region fallback |
 | 3. Technical analysis indicators and patterns | **Implemented**: 21 indicators, 27 candlestick patterns, swing points and double tops/bottoms, in Python and JS (parity-tested), API endpoints, chart overlays and readings |
-| 4. SMC detections and signal engine | Not started |
+| 4. SMC detections and signal engine | **Implemented**: SMC in Python + JS (parity-tested), signal engine, persistence (migration 0002), scanner, signal API, chart SMC overlay |
 | 5. Risk, lifecycle, alerts | Frontend position-size calculator only |
 | 6. Backtesting and performance | Not started |
 | 7. Accounts and server-side 3-signal trial | Not started |

@@ -10,6 +10,7 @@ from . import __version__
 from .api.analysis import router as analysis_router
 from .api.health import router as health_router
 from .api.markets import router as markets_router
+from .api.signals import router as signals_router
 from .config import get_settings
 from .errors import install_error_handlers
 from .api.streams import router as streams_router
@@ -75,6 +76,7 @@ def create_app(provider=None, hub: StreamHub | None = None, limiter=None) -> Fas
     app.include_router(health_router)
     app.include_router(markets_router)
     app.include_router(analysis_router)
+    app.include_router(signals_router)
     app.include_router(streams_router)
     return app
 

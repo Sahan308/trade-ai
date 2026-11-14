@@ -2,6 +2,7 @@
 const fs = require("fs"), path = require("path");
 globalThis.window = globalThis;
 require(path.resolve(__dirname, "../../assets/js/analysis/ta.js"));
+require(path.resolve(__dirname, "../../assets/js/analysis/smc.js"));
 const A = globalThis.TA.Analysis;
 const { t, o, h, l, c, v, interval_ms } = JSON.parse(fs.readFileSync(0, "utf8"));
 const out = {
@@ -10,6 +11,7 @@ const out = {
   bollinger: A.bollinger(c), keltner: A.keltner(h, l, c), adx: A.adx(h, l, c), supertrend: A.supertrend(h, l, c),
   ichimoku: A.ichimoku(h, l, c), psar: A.parabolicSar(h, l), obv: A.obv(c, v), vwap: A.vwap(t, h, l, c, v),
   volume_profile: A.volumeProfile(h, l, c, v), fibonacci: A.fibonacci(h, l), pivots: A.pivots(t, h, l, c, interval_ms),
-  patterns: A.detectCandlestickPatterns(o, h, l, c), swings: A.swingPoints(h, l), formations: A.doubleTopsBottoms(h, l, c)
+  patterns: A.detectCandlestickPatterns(o, h, l, c), swings: A.swingPoints(h, l), formations: A.doubleTopsBottoms(h, l, c),
+  smc: globalThis.TA.SMC.analyzeSmc(o, h, l, c)
 };
 process.stdout.write(JSON.stringify(out));

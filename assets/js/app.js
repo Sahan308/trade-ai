@@ -10,7 +10,7 @@
     set demo(v) { try { sessionStorage.setItem("ta-demo", v ? "1" : "0"); } catch {} }
   };
   if (new URLSearchParams(location.search).get("demo") === "1") store.demo = true;
-  const ui = { tf: "1H", ema: true, volume: true, sym: 0, sma50: false, bb: false, vwap: false, st: false, psar: false, ichi: false, pat: true };
+  const ui = { tf: "1H", ema: true, volume: true, sym: 0, sma50: false, bb: false, vwap: false, st: false, psar: false, ichi: false, pat: true, smc: false };
   let lastSignals = [];
 
   // ---------- Routes ----------
@@ -132,7 +132,8 @@
         <button type="button" class="chip" data-ind="volume" aria-pressed="${ui.volume}">Volume</button>
         ${[["sma50", "SMA 50", "Simple average of the last 50 closes."], ["bb", "Bollinger", "20-period average ± 2 standard deviations."], ["vwap", "VWAP", "Volume-weighted average price since 00:00 UTC."],
            ["st", "Supertrend", "ATR-based trailing line; flips when price closes through it."], ["psar", "SAR", "Parabolic SAR dots: a trailing stop-style trend marker."],
-           ["ichi", "Ichimoku cloud", "Area between Ichimoku spans A and B (no look-ahead)."], ["pat", "Patterns", "Markers for candlestick patterns: context, not predictions."]]
+           ["ichi", "Ichimoku cloud", "Area between Ichimoku spans A and B (no look-ahead)."], ["pat", "Patterns", "Markers for candlestick patterns: context, not predictions."],
+           ["smc", "SMC", "Order blocks, fair value gaps, BOS/CHOCH levels and resting liquidity (algorithmic interpretations)."]]
           .map(([k, label, tip]) => `<button type="button" class="chip" data-ind="${k}" aria-pressed="${ui[k]}" title="${tip}">${label}</button>`).join("")}
       </div>
     </div>`;
@@ -169,8 +170,21 @@
       }
       if (ui.psar) dots.push({ values: cut(a.psar), color: "var(--tx-2)" });
       if (ui.ichi) bands.push({ upper: cut(a.ichi.span_a), lower: cut(a.ichi.span_b), color: "var(--teal)", opacity: 0.12 });
+      const boxes = [], hlines = [];
+      if (ui.smc) {
+        const S = a.smc, last = VIEW - 1, rel = (i) => i - off;
+        S.order_blocks.filter((b) => b.status !== "broken" && b.created_index >= off).slice(-6).forEach((b) =>
+          boxes.push({ i0: Math.max(0, rel(b.index)), i1: last, lo: b.low, hi: b.high, color: b.direction === "bullish" ? "var(--up)" : "var(--down)", label: `${b.direction} order block (${b.status})` }));
+        S.fvgs.filter((g) => g.status !== "filled" && g.index >= off).slice(-6).forEach((g) =>
+          boxes.push({ i0: rel(g.index), i1: last, lo: g.low, hi: g.high, color: "var(--accent)", label: `${g.direction} fair value gap (${g.status})` }));
+        S.structure.filter((e) => e.index >= off).slice(-6).forEach((e) =>
+          hlines.push({ i0: Math.max(0, rel(e.swing_index)), i1: rel(e.index), y: e.level, color: e.direction === "bullish" ? "var(--up)" : "var(--down)", text: e.type, label: `${e.type} ${e.direction}` }));
+        S.liquidity.levels.filter((x) => x.status === "resting" && x.index >= off).slice(-6).forEach((x) =>
+          hlines.push({ i0: rel(x.index), i1: last, y: x.level, color: "var(--tx-3)", dash: "2 3", text: x.side + (x.equal ? " (equal)" : ""), label: `${x.side} resting liquidity` }));
+        if (S.premium_discount) hlines.push({ i0: 0, i1: last, y: S.premium_discount.equilibrium, color: "var(--teal)", dash: "6 4", text: "EQ", label: "Equilibrium of the dealing range" });
+      }
       const markers = ui.pat ? a.patterns.filter((p) => p.index >= off).map((p) => ({ index: p.index - off, bias: p.bias, label: `${p.pattern} (${p.bias})` })) : [];
-      area.innerHTML = TA.candleChart(cs.slice(-VIEW), { w: 900, h: 340, ema: ui.ema, volume: ui.volume, overlays, bands, dots, markers });
+      area.innerHTML = TA.candleChart(cs.slice(-VIEW), { w: 900, h: 340, ema: ui.ema, volume: ui.volume, overlays, bands, dots, markers, boxes, hlines });
       if (readings) renderReadings();
     };
     const readings = host.querySelector(".readings");
@@ -262,7 +276,8 @@
       atr: A.atr(h, l, c), bb: A.bollinger(c), kc: A.keltner(h, l, c), adx: A.adx(h, l, c), st: A.supertrend(h, l, c),
       ichi: A.ichimoku(h, l, c), psar: A.parabolicSar(h, l), obv: A.obv(c, v), vwap: A.vwap(t, h, l, c, v),
       vp: A.volumeProfile(h, l, c, v), fib: A.fibonacci(h, l), piv: A.pivots(t, h, l, c, INTERVAL_MS[tf]),
-      patterns: A.detectCandlestickPatterns(o, h, l, c), formations: A.doubleTopsBottoms(h, l, c)
+      patterns: A.detectCandlestickPatterns(o, h, l, c), formations: A.doubleTopsBottoms(h, l, c),
+      smc: TA.SMC.analyzeSmc(o, h, l, c)
     };
   }
   const lastOf = (arr) => (arr && arr.length ? arr[arr.length - 1] : null);
@@ -313,6 +328,20 @@
         row("Pivots (classic)", `Floor pivots from the ${piv ? piv.basis : "previous period"}.`, piv ? fmtN(piv.p) : "—", piv ? `R1 ${fmtN(piv.r1)} · S1 ${fmtN(piv.s1)} · R2 ${fmtN(piv.r2)} · S2 ${fmtN(piv.s2)}` : "needs the previous UTC day in view"),
         row("Fibonacci retracement", "Ratios between the highest high and lowest low in view.", fib ? `${fmtN(fib.swing_low)} – ${fmtN(fib.swing_high)}` : "—", fib ? `${fib.direction} move · 38.2% ${fmtN(fib.levels["0.382"])} · 50% ${fmtN(fib.levels["0.5"])} · 61.8% ${fmtN(fib.levels["0.618"])}` : "")
       ])}
+      ${(() => {
+        const S = a.smc, ev = S.structure[S.structure.length - 1], pd = S.premium_discount;
+        const ob = S.order_blocks.filter((b) => b.status !== "broken"), fv = S.fvgs.filter((g) => g.status !== "filled");
+        const bsl = S.liquidity.levels.filter((x) => x.side === "BSL" && x.status === "resting" && x.level > px).sort((p, q) => p.level - q.level)[0];
+        const ssl = S.liquidity.levels.filter((x) => x.side === "SSL" && x.status === "resting" && x.level < px).sort((p, q) => q.level - p.level)[0];
+        const sw = S.liquidity.sweeps.filter((x) => x.event_index >= cs.length - 10);
+        return group("Smart Money Concepts", [
+          row("Structure", "BOS = break of structure (continuation); CHOCH = change of character (reversal). Based on closes through confirmed swing points.", ev ? `${ev.type} ${ev.direction}` : "—", ev ? `close through ${fmtN(ev.level)} · ${TA.fmtTime(a.t[ev.index])}` : "no structure break in view"),
+          row("Order blocks", "Last opposite candle before a structure break. Fresh = not revisited; mitigated = price returned into it.", `${ob.length} active`, ob.slice(-2).map((b) => `${b.direction} ${fmtN(b.low)}–${fmtN(b.high)} (${b.status})`).join(" · ") || "none"),
+          row("Fair value gaps", "Three-candle gaps where price moved fast, at least 0.1 ATR wide.", `${fv.length} unfilled`, fv.slice(-2).map((g) => `${g.direction} ${fmtN(g.low)}–${fmtN(g.high)} (${g.status})`).join(" · ") || "none"),
+          row("Liquidity", "Resting liquidity = unbroken swing highs (BSL) and lows (SSL). A sweep wicks through and closes back.", `${bsl ? fmtN(bsl.level) : "—"} / ${ssl ? fmtN(ssl.level) : "—"}`, `nearest BSL above / SSL below${sw.length ? ` · ${sw.length} sweep(s) in last 10 candles` : ""}`),
+          row("Premium / discount", "Position in the range between the latest swing high and swing low. Above the midpoint = premium.", pd ? pd.zone : "—", pd ? `equilibrium ${fmtN(pd.equilibrium)} · range ${fmtN(pd.range_low)}–${fmtN(pd.range_high)}` : "needs swing high and low")
+        ]) + `<p class="muted" style="font-size:.76rem;margin:6px 0 0">SMC readings are algorithmic interpretations of price action. They don't show what institutions are doing.</p>`;
+      })()}
       <h3 style="font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--tx-3);margin:18px 0 8px">Candlestick patterns · last 30 candles</h3>
       ${recent.length ? `<ul class="list-signals" style="list-style:none;margin:0;padding:0">${recent.map((p) => `<li class="sig-row" style="cursor:default">${biasBadge(p.bias)}<span><b>${p.pattern}</b><br/><span class="muted" style="font-size:.8rem">${p.candles.length} candle${p.candles.length > 1 ? "s" : ""} · ${TA.fmtTime(a.t[p.index])}</span></span><span class="muted" style="font-size:.78rem">${((n) => (n === 0 ? "current candle" : n === 1 ? "1 bar ago" : `${n} bars ago`))(cs.length - 1 - p.index)}</span></li>`).join("")}</ul>`
         : `<p class="muted" style="font-size:.86rem">No patterns in the last 30 candles.</p>`}
@@ -371,7 +400,7 @@
       if (r.status === "ok") lastSignals = r.data;
       const draw = () => {
         const host = $("#sg", el);
-        if (r.status !== "ok") { host.style.display = "block"; host.innerHTML = `<div class="card">${r.status === "disconnected" ? state("off", "No signal feed connected", "TRADE-AI doesn't generate signals in the browser. They'll appear here once an approved signal backend is connected.", demoBtn) : fromResult(r, "Signals")}</div>`; return; }
+        if (r.status !== "ok") { host.style.display = "block"; host.innerHTML = `<div class="card">${r.status === "disconnected" ? state("off", "No signal feed connected", "Signals are produced by the TRADE-AI server (strategy smc_trend_pullback v1.0.0) and stored with their evidence. They'll appear here once the backend is hosted and <code>api.backendBaseUrl</code> is set.", demoBtn) : fromResult(r, "Signals")}</div>`; return; }
         const list = r.data.filter((s) => filter === "ALL" || s.direction === filter);
         host.innerHTML = list.length ? list.map((s, i) => `<div class="reveal" style="--d:${i * 60}ms" data-sig="${s.id}" role="button" tabindex="0" aria-label="Open ${TA.esc(s.symbol)} details">${TA.signalCard(s)}</div>`).join("") : `<div class="card" style="grid-column:1/-1">${state("empty", "Nothing matches this filter", "Try another direction.")}</div>`;
         TA.initReveal(host);

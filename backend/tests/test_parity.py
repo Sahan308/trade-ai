@@ -9,6 +9,7 @@ import pytest
 
 from app.analysis import indicators as ind
 from app.analysis.patterns import detect_candlestick_patterns, double_tops_bottoms, swing_points
+from app.analysis.smc import analyze_smc
 from tests.fixtures import H, candles
 
 NODE = shutil.which("node")
@@ -24,6 +25,7 @@ def python_results(t, o, h, l, c, v):
         "obv": ind.obv(c, v), "vwap": ind.vwap(t, h, l, c, v), "volume_profile": ind.volume_profile(h, l, c, v),
         "fibonacci": ind.fibonacci(h, l), "pivots": ind.pivots(t, h, l, c, H),
         "patterns": detect_candlestick_patterns(o, h, l, c), "swings": swing_points(h, l), "formations": double_tops_bottoms(h, l, c),
+        "smc": analyze_smc(o, h, l, c),
     }
 
 
@@ -50,6 +52,8 @@ def test_js_matches_python(seed):
     js = json.loads(subprocess.run([NODE, str(RUNNER)], input=payload, capture_output=True, text=True, check=True).stdout)
     py = json.loads(json.dumps(python_results(t, o, h, l, c, v)))   # normalise tuples etc.
     assert py["patterns"], "fixture should trigger some patterns"
+    smc = py["smc"]
+    assert smc["structure"] and smc["order_blocks"] and smc["fvgs"] and smc["liquidity"]["sweeps"], "fixture should exercise SMC"
     same(py, js)
 
 

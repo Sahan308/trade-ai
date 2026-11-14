@@ -1,7 +1,7 @@
 /* Reusable UI components (pure render functions → HTML strings). */
 (function () {
   const TA = window.TA;
-  const lifeLabel = { active: "Active", triggered: "Triggered", target_reached: "Target reached", stopped: "Stopped", expired: "Expired", invalidated: "Invalidated" };
+  const lifeLabel = { active: "Active", triggered: "Triggered", target_reached: "Target reached", stopped: "Stopped", expired: "Expired", invalidated: "Invalidated", no_trade: "No trade" };
   TA.lifeLabel = lifeLabel;
 
   const scoreTip = "Heuristic setup score (0–100) summarising how many conditions align. It is NOT a probability of winning.";
@@ -67,6 +67,13 @@
         </dl>
         <div class="level"><dt><span class="term" tabindex="0" data-tip="The condition that proves the idea wrong. If it happens, the setup is void even before the stop is hit.">Invalidation</span></dt><dd style="font-family:var(--font-sans)">${TA.esc(s.invalidation)}</dd></div>
 
+        ${s.explanation ? `<p style="margin:0;font-size:.9rem">${TA.esc(s.explanation)}</p>` : ""}
+        ${s.rrNet != null ? `<dl class="detail-grid" style="margin:0">
+          <div class="level"><dt>Reward:risk (TP1, after costs)</dt><dd>${s.rrNet}</dd></div>
+          <div class="level"><dt>Target 3</dt><dd>${TA.fmtPrice(s.targets[2])}</dd></div>
+          <div class="level"><dt>Strategy</dt><dd style="font-family:var(--font-sans)">${TA.esc(s.strategyId || s.strategy)}</dd></div>
+          <div class="level"><dt>Data as of</dt><dd style="font-family:var(--font-sans)">${s.dataAsOf ? TA.fmtTime(s.dataAsOf) : "—"}</dd></div></dl>` : ""}
+        ${s.assumptions ? `<p class="muted" style="margin:0;font-size:.8rem">Assumed costs per side: fee ${(s.assumptions.fee_rate_per_side * 100).toFixed(3)}%, slippage ${(s.assumptions.slippage_per_side * 100).toFixed(3)}%. ${TA.esc(s.assumptions.note || "")}</p>` : ""}
         <div class="score"><span class="term" tabindex="0" data-tip="${scoreTip}">Heuristic setup score</span>
           <div class="score-bar" role="img" aria-label="Heuristic score ${s.score} of 100"><span style="width:${s.score}%"></span></div><span class="num">${s.score}/100</span></div>
         <p class="muted" style="margin:-10px 0 0;font-size:.8rem">Not a win probability. Scores have not been validated against outcomes.</p>
@@ -91,7 +98,9 @@
   // bands:    [{ upper, lower, color }]                  — filled area between two aligned arrays
   // dots:     [{ values, color }]                        — e.g. Parabolic SAR
   // markers:  [{ index, bias, label }]                   — pattern markers (▲ bullish, ▼ bearish, ◆ neutral)
-  TA.candleChart = (cs, { w = 800, h = 320, ema = true, volume = true, grid = true, cls = "", range = null, overlays = [], bands = [], dots = [], markers = [] } = {}) => {
+  // boxes:    [{ i0, i1, lo, hi, color, label }]        — zones (order blocks, FVGs)
+  // hlines:   [{ i0, i1, y, color, label, dash }]       — levels (BOS/CHOCH, liquidity, equilibrium)
+  TA.candleChart = (cs, { w = 800, h = 320, ema = true, volume = true, grid = true, cls = "", range = null, overlays = [], bands = [], dots = [], markers = [], boxes = [], hlines = [] } = {}) => {
     if (!cs || !cs.length) return "";
     const padR = 54, padB = 22, volH = volume ? 46 : 0;
     let lo, hi;
@@ -125,6 +134,17 @@
       };
       cs.forEach((_, i) => { if (b.upper[i] != null && b.lower[i] != null) run.push(i); else flush(); });
       flush();
+    });
+    boxes.forEach((b) => {
+      const x0 = Math.max(0, xAt(b.i0) - step / 2), x1 = Math.min(w - padR, xAt(b.i1) + step / 2);
+      if (b.hi < lo || b.lo > hi || x1 <= x0) return;
+      out += `<rect x="${x0.toFixed(1)}" y="${y(Math.min(hi, b.hi)).toFixed(1)}" width="${(x1 - x0).toFixed(1)}" height="${Math.max(1, y(Math.max(lo, b.lo)) - y(Math.min(hi, b.hi))).toFixed(1)}" fill="${b.color}" opacity="0.14" stroke="${b.color}" stroke-opacity="0.45" stroke-width="0.8"><title>${TA.esc(b.label || "")}</title></rect>`;
+    });
+    hlines.forEach((ln) => {
+      if (ln.y < lo || ln.y > hi) return;
+      const x0 = Math.max(0, xAt(ln.i0)), x1 = Math.min(w - padR, xAt(ln.i1)), yy = y(ln.y).toFixed(1);
+      out += `<line x1="${x0.toFixed(1)}" x2="${x1.toFixed(1)}" y1="${yy}" y2="${yy}" stroke="${ln.color}" stroke-width="1" ${ln.dash ? `stroke-dasharray="${ln.dash}"` : ""} opacity="0.85"><title>${TA.esc(ln.label || "")}</title></line>`;
+      if (ln.text) out += `<text x="${(x0 + 3).toFixed(1)}" y="${(+yy - 3).toFixed(1)}" fill="${ln.color}" style="font:600 9px var(--font-sans)">${TA.esc(ln.text)}</text>`;
     });
     cs.forEach((c, i) => {
       const x = xAt(i), up = c.c >= c.o, col = up ? "var(--up)" : "var(--down)";
