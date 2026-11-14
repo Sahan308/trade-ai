@@ -118,7 +118,7 @@
       el.innerHTML = `
         <div class="status-row">
           <div class="card stat"><small>Market status</small><strong id="mkStatus">${store.demo ? "Sample" : "Unknown"}</strong><p class="muted">${store.demo ? "Preview fixture" : "Needs data feed"}</p></div>
-          <div class="card stat"><small>Data connection</small><strong>${store.demo ? `<span class="dot" style="color:var(--accent)"></span>Sample` : TA.MarketData.isConfigured() ? `<span class="dot dot-live" style="color:var(--info)"></span>Live` : `${TA.icon("wifiOff", "icon-sm")}Offline`}</strong><p class="muted">${store.demo ? "Fixture — not live" : "api.marketDataBaseUrl"}</p></div>
+          <div class="card stat"><small>Data connection</small><strong>${store.demo ? `<span class="dot" style="color:var(--accent)"></span>Sample` : TA.MarketData.isConfigured() ? `<span class="dot dot-live" style="color:var(--teal)"></span>Live` : `${TA.icon("wifiOff", "icon-sm")}Offline`}</strong><p class="muted">${store.demo ? "Fixture — not live" : "api.marketDataBaseUrl"}</p></div>
           <div class="card stat"><small>Data freshness</small><strong id="fresh">—</strong><p class="muted">Stale after ${C.api.staleAfterSeconds}s</p></div>
           <div class="card stat"><small>Trial signals</small><strong id="usageTxt"><span class="skeleton" style="width:60px;display:inline-block">&nbsp;</span></strong><div class="usage" id="usageBar" aria-hidden="true"></div></div>
         </div>
