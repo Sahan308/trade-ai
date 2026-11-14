@@ -19,7 +19,7 @@ window.TRADE_AI_CONFIG = {
 
   // Backend endpoints. null = not connected; the UI shows designed disconnected states.
   api: {
-    backendBaseUrl: null,
+    backendBaseUrl: "https://gku4jfhdjmk2.ample.run",
     // Public, key-less exchange data used directly from the browser when no backend is set.
     // Set to null to disable (the app then shows "not connected" states).
     publicProvider: "binance",
