@@ -89,6 +89,7 @@
           <div class="estimate"><h3 style="font-size:.95rem;display:flex;gap:6px;align-items:center">${TA.icon("flask", "icon-sm")} Unvalidated estimates</h3>
             <p style="font-size:.86rem;margin:0">The setup score above is a model heuristic, not a measured result.</p></div>
         </div>
+        ${s.source === "live" && TA.strategyNotice ? TA.strategyNotice() : ""}
         <p class="muted" style="font-size:.78rem;margin:0">Analysis only. TRADE-AI never places trades. Crypto markets are volatile — you can lose money.</p>
       </div>`;
   };

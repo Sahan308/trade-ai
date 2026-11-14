@@ -245,6 +245,7 @@ One library, written twice: `backend/app/analysis` (Python, for the API and the 
 | 3. Technical analysis indicators and patterns | **Implemented**: 21 indicators, 27 candlestick patterns, swing points and double tops/bottoms, in Python and JS (parity-tested), API endpoints, chart overlays and readings |
 | 4. SMC detections and signal engine | **Implemented**: SMC in Python + JS (parity-tested), signal engine, persistence (migration 0002), scanner, signal API, chart SMC overlay |
 | 5. Risk, lifecycle, alerts | **Implemented**: sizing (Python + JS, parity-tested) with exchange specs, lifecycle tracker, events, in-app alerts, migration 0003 |
+| Strategy research (v1.1) | **Done — negative result.** No candidate passed the pre-registered rules; holdout untouched. See `research/RESULTS.md`. v1.0.0 is flagged experimental in the app |
 | 6. Backtesting and performance | **Implemented**: backtester (no look-ahead, 1m collision resolver, costs, funding, latency), splits, walk-forward, metrics, storage, CLI, API, History page |
 | 7. Accounts and server-side 3-signal trial | Not started |
 | 8. Billing | Out of scope until explicitly requested — no checkout, no payment data |

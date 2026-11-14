@@ -26,6 +26,12 @@ class StrategyConfig:
     fee_rate: dict = field(default_factory=lambda: {"spot": 0.001, "futures": 0.0005})   # per side, taker
     slippage: float = 0.0005           # per side
     funding_extreme: float = 0.0005    # per funding period
+    # v1.1 research options — defaults reproduce v1.0.0 exactly
+    stop_min_atr: float = 0.0          # stop at least this many ATRs from the entry-zone midpoint
+    htf_required: bool = False         # require the higher-timeframe trend to agree
+    target_mode: str = "liquidity"     # "liquidity" or "r_multiple"
+    r_targets: tuple = (1.5, 2.5, 3.5) # used when target_mode == "r_multiple"
+    min_risk_cost_ratio: float = 0.0   # risk per unit must be ≥ this × round-trip cost
 
     def snapshot(self) -> dict:
         return asdict(self)

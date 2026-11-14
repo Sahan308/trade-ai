@@ -41,6 +41,13 @@ window.TRADE_AI_CONFIG = {
   ],
   watchlistRefreshSeconds: 15,
 
+  // Shown wherever signals appear. Keep in sync with research/RESULTS.md.
+  strategyStatus: {
+    experimental: true,
+    note: "Strategy smc_trend_pullback is experimental. In backtests on 8 coins over 2 years (1H, after fees) it lost money, and no improved version passed testing. Signals are shown for research and transparency, not as recommendations.",
+    url: "https://github.com/Sahan308/trade-ai/blob/main/research/RESULTS.md"
+  },
+
   auth: { enabled: false },        // no authentication integration yet
 
   links: {

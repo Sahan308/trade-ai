@@ -83,6 +83,9 @@
     const icon = { off: "plug", error: "alert", empty: "search", soon: "flask" }[kind] || "info";
     return `<div class="state ${kind}" role="${kind === "error" ? "alert" : "status"}"><div class="ic">${TA.icon(icon, "icon-lg")}</div><h3>${title}</h3><p>${body}</p>${actions ? `<div class="actions">${actions}</div>` : ""}</div>`;
   };
+  const strategyNotice = () => C.strategyStatus && C.strategyStatus.experimental
+    ? `<div class="integration" role="note" style="border-color:rgba(241,107,117,.45)"><span class="down">${TA.icon("alert", "icon-sm")}</span><span>${TA.esc(C.strategyStatus.note)} <a href="${C.strategyStatus.url}" target="_blank" rel="noopener" style="text-decoration:underline">Read the research</a></span></div>` : "";
+  TA.strategyNotice = strategyNotice;
   const demoBtn = `<button class="btn btn-sm" data-act="demo-on">${TA.icon("flask", "icon-sm")}View sample preview</button>`;
   const retryBtn = `<button class="btn btn-sm" data-act="retry">${TA.icon("refresh", "icon-sm")}Retry</button>`;
   const disconnected = (what) => state("off", `${what} isn't connected`, "No market data source is configured, so nothing is shown rather than made-up numbers. Set <code>api.publicProvider</code> or <code>api.backendBaseUrl</code> in <code>config.js</code>.", demoBtn);
@@ -393,7 +396,7 @@
 
     async signals(el) {
       let filter = "ALL";
-      el.innerHTML = `<div class="panel-head" style="margin:0"><div class="seg" role="group" aria-label="Filter by direction">${["ALL", "LONG", "SHORT", "NO TRADE"].map((f) => `<button data-f="${f}" aria-pressed="${f === filter}">${f === "ALL" ? "All" : f[0] + f.slice(1).toLowerCase()}</button>`).join("")}</div></div>
+      el.innerHTML = strategyNotice() + `<div class="panel-head" style="margin:0"><div class="seg" role="group" aria-label="Filter by direction">${["ALL", "LONG", "SHORT", "NO TRADE"].map((f) => `<button data-f="${f}" aria-pressed="${f === filter}">${f === "ALL" ? "All" : f[0] + f.slice(1).toLowerCase()}</button>`).join("")}</div></div>
         <div id="sg" class="module-grid">${Array.from({ length: 3 }, () => '<div class="skeleton" style="height:320px;border-radius:18px"></div>').join("")}</div>`;
       const r = await TA.Signals.getRecent({ demo: store.demo });
       if (!el.isConnected) return;
@@ -416,7 +419,7 @@
           <button role="tab" data-kind="prospective" aria-selected="true">Live signals (prospective)</button>
           <button role="tab" data-kind="backtest" aria-selected="false">Backtests</button>
           <button role="tab" data-kind="paper" aria-selected="false">Paper</button></div></div>
-        <div id="perf"></div>
+        ${strategyNotice()}<div id="perf"></div>
         <section class="card panel"><h2 style="font-size:1rem">${TA.icon("info")}How results are measured</h2>
           <ul style="margin:0;padding-left:18px;font-size:.88rem;color:var(--tx-2);display:grid;gap:4px">
             <li><b>Live signals, backtests and paper trading are kept separate.</b> They are never added together.</li>

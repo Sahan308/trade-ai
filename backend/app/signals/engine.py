@@ -48,7 +48,17 @@ def _iso(ms: float) -> str:
 
 
 def evaluate(series: dict, htf_series: dict | None, *, symbol: str, market: str, source: str,
-             cfg: StrategyConfig, now: datetime, gaps: int = 0, funding_rate: float | None = None) -> dict:
+             cfg: StrategyConfig, now: datetime, gaps: int = 0, funding_rate: float | None = None,
+             cache: dict | None = None) -> dict:
+    """`cache`: optional dict reused across calls on the SAME data and time (research only) so that
+    variant configs share the expensive, variant-independent calculations. Never changes results."""
+    memo = cache if cache is not None else {}
+
+    def m(key, fn):
+        if key not in memo:
+            memo[key] = fn()
+        return memo[key]
+
     step = INTERVAL_MS[cfg.timeframe]
     base = {
         "symbol": symbol, "market": market, "timeframe": cfg.timeframe, "strategy": cfg.name,
@@ -85,9 +95,9 @@ def evaluate(series: dict, htf_series: dict | None, *, symbol: str, market: str,
     px = c[-1]
 
     # ---- 2. regime ----
-    a = ind.atr(h, l, c)[-1]
-    adx = ind.adx(h, l, c)["adx"][-1]
-    e50 = ind.ema(c, 50)
+    a = m("atr", lambda: ind.atr(h, l, c)[-1])
+    adx = m("adx", lambda: ind.adx(h, l, c)["adx"][-1])
+    e50 = m("e50", lambda: ind.ema(c, 50))
     slope = e50[-1] - e50[-6]
     atr_pct = a / px * 100
     if atr_pct > cfg.atr_pct_volatile:
@@ -98,7 +108,7 @@ def evaluate(series: dict, htf_series: dict | None, *, symbol: str, market: str,
         regime = "trending_down"
     else:
         regime = "ranging"
-    htf_bias = _bias(_closed(htf_series, cfg.htf, now)) if htf_series else None
+    htf_bias = m("htf", lambda: _bias(_closed(htf_series, cfg.htf, now)) if htf_series else None)
     base.update(regime=regime, htf_bias=htf_bias, atr=a, adx=adx)
 
     if regime == "volatile":
@@ -110,7 +120,7 @@ def evaluate(series: dict, htf_series: dict | None, *, symbol: str, market: str,
     want = "bullish" if bull else "bearish"
 
     # ---- 3. strategy rules (hard requirements) ----
-    smc = analyze_smc(o, h, l, c)
+    smc = m("smc", lambda: analyze_smc(o, h, l, c))
     supporting, conflicting = [], []
     sup = lambda f, d, w: supporting.append({"factor": f, "detail": d, "weight": w})  # noqa: E731
     con = lambda f, d, w: conflicting.append({"factor": f, "detail": d, "weight": w})  # noqa: E731
@@ -142,6 +152,8 @@ def evaluate(series: dict, htf_series: dict | None, *, symbol: str, market: str,
     kind, zstatus, zlo, zhi, zidx = zone
     entry_mid = (zlo + zhi) / 2
     stop = zlo - cfg.stop_buffer_atr * a if bull else zhi + cfg.stop_buffer_atr * a
+    if cfg.stop_min_atr > 0:                      # v1.1 option: keep the stop at least N ATR away
+        stop = min(stop, entry_mid - cfg.stop_min_atr * a) if bull else max(stop, entry_mid + cfg.stop_min_atr * a)
     risk = abs(entry_mid - stop)
     sup("Entry zone", f"{zstatus.capitalize()} {want} {kind} at {zlo:.6g}–{zhi:.6g}, {dist(zone) / a:.2f} ATR from price", 10 if zstatus in ("fresh", "open") else 5)
 
@@ -162,6 +174,10 @@ def evaluate(series: dict, htf_series: dict | None, *, symbol: str, market: str,
             targets.append(nxt); sources.append(f"{mult:g}R")
         mult += 1.0
 
+    if cfg.target_mode == "r_multiple":
+        targets = [entry_mid + k * risk if bull else entry_mid - k * risk for k in cfg.r_targets]
+        sources = [f"{k:g}R" for k in cfg.r_targets]
+
     # ---- 4. evidence ----
     if htf_bias == ("up" if bull else "down"):
         sup("Higher timeframe", f"{cfg.htf} trend agrees ({htf_bias})", 15)
@@ -181,24 +197,24 @@ def evaluate(series: dict, htf_series: dict | None, *, symbol: str, market: str,
         con("Liquidity sweep", f"{'Buy' if bull else 'Sell'}-side liquidity was swept recently (move may have been rejected)", 5)
     if any(i["direction"] == want and i["status"] == "taken" and i["taken_index"] >= n - 20 for i in smc["inducements"]):
         sup("Inducement", "An inducement level was taken after the structure break", 5)
-    r = ind.rsi(c)[-1]
+    r = m("rsi", lambda: ind.rsi(c)[-1])
     if r is not None and (r > 70 if bull else r < 30):
         con("RSI", f"RSI {r:.1f} is in the {'overbought' if bull else 'oversold'} zone", 10)
-    hist = ind.macd(c)["histogram"][-1]
+    hist = m("macd", lambda: ind.macd(c)["histogram"][-1])
     if hist is not None:
         (sup if (hist > 0) == bull else con)("MACD", f"Histogram is {'positive' if hist > 0 else 'negative'}", 5)
-    vs = ind.sma(v, 20)
+    vs = m("vsma", lambda: ind.sma(v, 20))
     bi = last_ev["index"]
     if vs[bi] and v[bi] > 1.2 * vs[bi]:
         sup("Volume", "The structure break happened on above-average volume (>1.2× 20-bar average)", 5)
-    pats = [p for p in detect_candlestick_patterns(o, h, l, c) if p["index"] >= n - 3]
+    pats = [p for p in m("pats", lambda: detect_candlestick_patterns(o, h, l, c)) if p["index"] >= n - 3]
     pa = sum(1 for p in pats if p["bias"] == want)
     pc = sum(1 for p in pats if p["bias"] not in (want, "neutral"))
     if pa:
         sup("Candlestick patterns", ", ".join(sorted({p["pattern"] for p in pats if p["bias"] == want})) + " in the last 3 candles", min(10, 5 * pa))
     if pc:
         con("Candlestick patterns", ", ".join(sorted({p["pattern"] for p in pats if p["bias"] not in (want, "neutral")})) + " in the last 3 candles", min(10, 5 * pc))
-    for f in double_tops_bottoms(h, l, c):
+    for f in m("forms", lambda: double_tops_bottoms(h, l, c)):
         if f["status"] == "confirmed" and f["confirmed_index"] >= n - 50:
             (sup if f["bias"] == want else con)("Chart formation", f"Confirmed {f['formation'].lower()} (neckline {f['neckline']:.6g})", 10)
     if market == "futures" and funding_rate is not None:
@@ -217,6 +233,10 @@ def evaluate(series: dict, htf_series: dict | None, *, symbol: str, market: str,
     base.update(score=score, supporting=supporting, conflicting=conflicting)
 
     reasons = []
+    if cfg.htf_required and htf_bias != ("up" if bull else "down"):
+        reasons.append(f"higher timeframe ({cfg.htf}) trend is {htf_bias or 'unknown'}, not {'up' if bull else 'down'} (required)")
+    if cfg.min_risk_cost_ratio > 0 and risk < cfg.min_risk_cost_ratio * cost:
+        reasons.append(f"stop distance is only {risk / cost:.1f}× the round-trip cost (minimum {cfg.min_risk_cost_ratio:g}×)")
     if score < cfg.min_score:
         reasons.append(f"heuristic score {score} is below the minimum {cfg.min_score}")
     if net_rr < cfg.min_rr:

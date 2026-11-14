@@ -1,0 +1,345 @@
+{
+  "protocol": "research/PROTOCOL.md",
+  "design_period": [
+    "2023-11-15T00:00:00+00:00",
+    "2025-11-15T00:00:00+00:00"
+  ],
+  "candidates": {
+    "v1.0.0": {
+      "settings": {},
+      "design": {
+        "trades": 2808,
+        "win_rate": 0.2436,
+        "profit_factor": 0.6709,
+        "expectancy_r": -0.3316,
+        "total_r": -931.2072,
+        "net_pnl_pct": -99.9953,
+        "max_drawdown_pct": 99.9958,
+        "avg_win_r": 2.7748,
+        "avg_loss_r": -1.332,
+        "warnings": []
+      },
+      "walk_forward": {
+        "trades": 1484,
+        "win_rate": 0.2358,
+        "profit_factor": 0.6965,
+        "expectancy_r": -0.313,
+        "total_r": -464.5084,
+        "net_pnl_pct": -99.3414,
+        "max_drawdown_pct": 99.4962,
+        "avg_win_r": 3.0451,
+        "avg_loss_r": -1.3495,
+        "warnings": []
+      },
+      "per_symbol_total_r": {
+        "BTCUSDT": -148.743,
+        "ETHUSDT": -155.027,
+        "SOLUSDT": -130.117,
+        "BNBUSDT": -134.414,
+        "XRPUSDT": -43.4,
+        "ADAUSDT": -110.83,
+        "LINKUSDT": -89.376,
+        "AVAXUSDT": -119.3
+      },
+      "eligible": false
+    },
+    "A": {
+      "settings": {
+        "stop_min_atr": 1.0
+      },
+      "design": {
+        "trades": 2280,
+        "win_rate": 0.3044,
+        "profit_factor": 0.7886,
+        "expectancy_r": -0.1661,
+        "total_r": -378.6353,
+        "net_pnl_pct": -98.3275,
+        "max_drawdown_pct": 98.5613,
+        "avg_win_r": 2.0351,
+        "avg_loss_r": -1.1293,
+        "warnings": []
+      },
+      "walk_forward": {
+        "trades": 1116,
+        "win_rate": 0.3011,
+        "profit_factor": 0.828,
+        "expectancy_r": -0.1392,
+        "total_r": -155.3986,
+        "net_pnl_pct": -82.1506,
+        "max_drawdown_pct": 88.6292,
+        "avg_win_r": 2.2265,
+        "avg_loss_r": -1.1583,
+        "warnings": []
+      },
+      "per_symbol_total_r": {
+        "BTCUSDT": -41.633,
+        "ETHUSDT": -78.869,
+        "SOLUSDT": -75.497,
+        "BNBUSDT": -56.2,
+        "XRPUSDT": -27.558,
+        "ADAUSDT": -43.215,
+        "LINKUSDT": -22.858,
+        "AVAXUSDT": -32.805
+      },
+      "eligible": false
+    },
+    "B": {
+      "settings": {
+        "stop_min_atr": 1.5
+      },
+      "design": {
+        "trades": 1771,
+        "win_rate": 0.3456,
+        "profit_factor": 0.8361,
+        "expectancy_r": -0.1126,
+        "total_r": -199.388,
+        "net_pnl_pct": -88.6488,
+        "max_drawdown_pct": 89.851,
+        "avg_win_r": 1.6624,
+        "avg_loss_r": -1.0499,
+        "warnings": []
+      },
+      "walk_forward": {
+        "trades": 695,
+        "win_rate": 0.3151,
+        "profit_factor": 0.7631,
+        "expectancy_r": -0.1724,
+        "total_r": -119.8154,
+        "net_pnl_pct": -72.0331,
+        "max_drawdown_pct": 76.9321,
+        "avg_win_r": 1.7619,
+        "avg_loss_r": -1.0623,
+        "warnings": []
+      },
+      "per_symbol_total_r": {
+        "BTCUSDT": 1.205,
+        "ETHUSDT": -59.004,
+        "SOLUSDT": -47.947,
+        "BNBUSDT": -21.368,
+        "XRPUSDT": -0.375,
+        "ADAUSDT": -20.961,
+        "LINKUSDT": -18.482,
+        "AVAXUSDT": -32.457
+      },
+      "eligible": false
+    },
+    "C": {
+      "settings": {
+        "stop_min_atr": 1.0,
+        "htf_required": true
+      },
+      "design": {
+        "trades": 2139,
+        "win_rate": 0.3058,
+        "profit_factor": 0.7878,
+        "expectancy_r": -0.1663,
+        "total_r": -355.7482,
+        "net_pnl_pct": -97.8571,
+        "max_drawdown_pct": 98.1566,
+        "avg_win_r": 2.0198,
+        "avg_loss_r": -1.1291,
+        "warnings": []
+      },
+      "walk_forward": {
+        "trades": 1007,
+        "win_rate": 0.287,
+        "profit_factor": 0.7687,
+        "expectancy_r": -0.1901,
+        "total_r": -191.4626,
+        "net_pnl_pct": -87.2715,
+        "max_drawdown_pct": 91.5349,
+        "avg_win_r": 2.2018,
+        "avg_loss_r": -1.1529,
+        "warnings": []
+      },
+      "per_symbol_total_r": {
+        "BTCUSDT": -51.466,
+        "ETHUSDT": -65.657,
+        "SOLUSDT": -73.932,
+        "BNBUSDT": -68.488,
+        "XRPUSDT": -22.4,
+        "ADAUSDT": -31.947,
+        "LINKUSDT": -26.459,
+        "AVAXUSDT": -15.401
+      },
+      "eligible": false
+    },
+    "D": {
+      "settings": {
+        "stop_min_atr": 1.5,
+        "htf_required": true
+      },
+      "design": {
+        "trades": 1677,
+        "win_rate": 0.3405,
+        "profit_factor": 0.8127,
+        "expectancy_r": -0.1294,
+        "total_r": -217.0658,
+        "net_pnl_pct": -90.371,
+        "max_drawdown_pct": 91.5035,
+        "avg_win_r": 1.6494,
+        "avg_loss_r": -1.0478,
+        "warnings": []
+      },
+      "walk_forward": {
+        "trades": 699,
+        "win_rate": 0.3162,
+        "profit_factor": 0.7619,
+        "expectancy_r": -0.1721,
+        "total_r": -120.3081,
+        "net_pnl_pct": -72.1297,
+        "max_drawdown_pct": 77.8447,
+        "avg_win_r": 1.7416,
+        "avg_loss_r": -1.0569,
+        "warnings": []
+      },
+      "per_symbol_total_r": {
+        "BTCUSDT": 0.623,
+        "ETHUSDT": -48.328,
+        "SOLUSDT": -42.532,
+        "BNBUSDT": -36.083,
+        "XRPUSDT": -11.799,
+        "ADAUSDT": -25.073,
+        "LINKUSDT": -24.535,
+        "AVAXUSDT": -29.338
+      },
+      "eligible": false
+    },
+    "E": {
+      "settings": {
+        "stop_min_atr": 1.0,
+        "htf_required": true,
+        "target_mode": "r_multiple"
+      },
+      "design": {
+        "trades": 0,
+        "win_rate": null,
+        "profit_factor": null,
+        "expectancy_r": null,
+        "total_r": 0,
+        "net_pnl_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "avg_win_r": null,
+        "avg_loss_r": null,
+        "warnings": [
+          "Only 0 trades \u2014 too few for reliable statistics. Treat these numbers as anecdotal."
+        ]
+      },
+      "walk_forward": {
+        "trades": 0,
+        "win_rate": null,
+        "profit_factor": null,
+        "expectancy_r": null,
+        "total_r": 0,
+        "net_pnl_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "avg_win_r": null,
+        "avg_loss_r": null,
+        "warnings": [
+          "Only 0 trades \u2014 too few for reliable statistics. Treat these numbers as anecdotal."
+        ]
+      },
+      "per_symbol_total_r": {
+        "BTCUSDT": 0,
+        "ETHUSDT": 0,
+        "SOLUSDT": 0,
+        "BNBUSDT": 0,
+        "XRPUSDT": 0,
+        "ADAUSDT": 0,
+        "LINKUSDT": 0,
+        "AVAXUSDT": 0
+      },
+      "eligible": false
+    },
+    "F": {
+      "settings": {
+        "stop_min_atr": 1.5,
+        "htf_required": true,
+        "target_mode": "r_multiple"
+      },
+      "design": {
+        "trades": 0,
+        "win_rate": null,
+        "profit_factor": null,
+        "expectancy_r": null,
+        "total_r": 0,
+        "net_pnl_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "avg_win_r": null,
+        "avg_loss_r": null,
+        "warnings": [
+          "Only 0 trades \u2014 too few for reliable statistics. Treat these numbers as anecdotal."
+        ]
+      },
+      "walk_forward": {
+        "trades": 0,
+        "win_rate": null,
+        "profit_factor": null,
+        "expectancy_r": null,
+        "total_r": 0,
+        "net_pnl_pct": 0.0,
+        "max_drawdown_pct": 0.0,
+        "avg_win_r": null,
+        "avg_loss_r": null,
+        "warnings": [
+          "Only 0 trades \u2014 too few for reliable statistics. Treat these numbers as anecdotal."
+        ]
+      },
+      "per_symbol_total_r": {
+        "BTCUSDT": 0,
+        "ETHUSDT": 0,
+        "SOLUSDT": 0,
+        "BNBUSDT": 0,
+        "XRPUSDT": 0,
+        "ADAUSDT": 0,
+        "LINKUSDT": 0,
+        "AVAXUSDT": 0
+      },
+      "eligible": false
+    },
+    "G": {
+      "settings": {
+        "stop_min_atr": 1.0,
+        "htf_required": true,
+        "min_risk_cost_ratio": 10.0
+      },
+      "design": {
+        "trades": 100,
+        "win_rate": 0.24,
+        "profit_factor": 0.3323,
+        "expectancy_r": -0.5023,
+        "total_r": -50.2314,
+        "net_pnl_pct": -39.8407,
+        "max_drawdown_pct": 39.8407,
+        "avg_win_r": 1.0416,
+        "avg_loss_r": -0.9899,
+        "warnings": []
+      },
+      "walk_forward": {
+        "trades": 71,
+        "win_rate": 0.2394,
+        "profit_factor": 0.3115,
+        "expectancy_r": -0.5291,
+        "total_r": -37.5691,
+        "net_pnl_pct": -31.5963,
+        "max_drawdown_pct": 31.5963,
+        "avg_win_r": 1.0001,
+        "avg_loss_r": -1.0106,
+        "warnings": []
+      },
+      "per_symbol_total_r": {
+        "BTCUSDT": 0,
+        "ETHUSDT": -0.98,
+        "SOLUSDT": -7.211,
+        "BNBUSDT": -3.174,
+        "XRPUSDT": -10.411,
+        "ADAUSDT": -7.57,
+        "LINKUSDT": -7.511,
+        "AVAXUSDT": -13.374
+      },
+      "eligible": false
+    }
+  },
+  "chosen": null,
+  "decision": "No candidate met the eligibility rules. Per protocol, no v1.1 is released."
+}
