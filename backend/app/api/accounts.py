@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from ..auth import hash_password, issue_token, require_user, verify_password
 from ..config import get_settings
 from ..db import get_session
-from ..models import AuditLog, Signal, SignalUnlock, User
+from ..models import AuditLog, PasswordReset, Signal, SignalUnlock, User
 from ..access import LIVE, view
 
 router = APIRouter(tags=["accounts"])
@@ -143,7 +143,71 @@ def delete_account(body: Confirm, user: User = Depends(require_user), session: S
     if user.plan != "trial" and user.subscription_status in ("active", "on_trial", "past_due"):
         raise HTTPException(409, "Cancel your subscription first (Manage subscription), then delete the account.")
     session.query(SignalUnlock).filter(SignalUnlock.user_id == user.id).delete()
+    session.query(PasswordReset).filter(PasswordReset.user_id == user.id).delete()
     session.add(AuditLog(actor=user.id, action="account.deleted", target=user.id))
     session.delete(user)
     session.commit()
     return {"ok": True}
+
+
+# ---- Password reset by email ----
+import hashlib as _hashlib  # noqa: E402
+import secrets as _secrets  # noqa: E402
+from datetime import datetime as _dt, timedelta as _td, timezone as _tz  # noqa: E402
+
+from .. import mailer  # noqa: E402
+
+RESET_TTL = _td(minutes=30)
+
+
+@router.get("/api/auth/config", summary="Which account features are switched on")
+def auth_config():
+    return {"password_reset": mailer.enabled()}
+
+
+class Forgot(BaseModel):
+    email: str = Field(max_length=254)
+
+
+@router.post("/api/auth/forgot", summary="Email a password-reset link (always answers the same)")
+def forgot(body: Forgot, session: Session = Depends(get_session)):
+    if not mailer.enabled():
+        raise HTTPException(503, "Password reset by email isn't available yet")
+    email = body.email.strip().lower()
+    user = session.scalar(select(User).where(User.email == email))
+    if user is not None:
+        recent = session.scalar(select(func.count()).select_from(PasswordReset).where(
+            PasswordReset.user_id == user.id, PasswordReset.created_at > _dt.now(_tz.utc) - _td(hours=1))) or 0
+        if recent < 3:   # at most 3 emails per hour per account
+            token = _secrets.token_urlsafe(32)
+            session.add(PasswordReset(user_id=user.id, token_hash=_hashlib.sha256(token.encode()).hexdigest(),
+                                      expires_at=_dt.now(_tz.utc) + RESET_TTL))
+            session.commit()
+            link = f"{get_settings().public_site_url}#/reset?token={token}"
+            mailer.send(user.email, "Reset your TRADE-AI password",
+                        f"Someone asked to reset the password for your TRADE-AI account.\n\n"
+                        f"Open this link within 30 minutes to choose a new password:\n{link}\n\n"
+                        f"If it wasn't you, ignore this email: your password stays the same.")
+    # Same answer whether or not the account exists, so this can't be used to discover emails.
+    return {"ok": True, "message": "If an account exists for that email, a reset link is on its way."}
+
+
+class Reset(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+    new_password: str = Field(min_length=8, max_length=128)
+
+
+@router.post("/api/auth/reset", summary="Set a new password with a reset token")
+def reset(body: Reset, session: Session = Depends(get_session)):
+    th = _hashlib.sha256(body.token.encode()).hexdigest()
+    pr = session.scalar(select(PasswordReset).where(PasswordReset.token_hash == th))
+    exp = pr.expires_at if pr is None or pr.expires_at.tzinfo else pr.expires_at.replace(tzinfo=_tz.utc)
+    if pr is None or pr.used_at is not None or exp < _dt.now(_tz.utc):
+        raise HTTPException(400, "This reset link is invalid or has expired. Request a new one.")
+    user = session.get(User, pr.user_id)
+    user.password_hash = hash_password(body.new_password)
+    pr.used_at = _dt.now(_tz.utc)
+    session.add(AuditLog(actor=user.id, action="account.password_reset", target=user.id))
+    session.commit()
+    _FAILS.pop(user.email, None)
+    return {"token": issue_token(user.id), "user": me(session, user)}

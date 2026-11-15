@@ -155,3 +155,14 @@ class DailyVisitor(Base):
     day: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
     path: Mapped[str] = mapped_column(String(64), nullable=False)
     visitor: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
+class PasswordReset(Base):
+    """Single-use reset tokens. Only a SHA-256 of the token is stored; tokens expire after 30 minutes."""
+    __tablename__ = "password_resets"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

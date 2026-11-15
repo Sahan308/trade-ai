@@ -192,3 +192,25 @@ def test_usage_stats_privacy_and_admin(c, monkeypatch):
     from app.models import DailyVisitor
     assert all(len(v.visitor) == 32 and "." not in v.visitor for v in s.query(DailyVisitor))   # hashes only, no IPs
     s.close()
+
+
+def test_password_reset_by_email(c, monkeypatch):
+    assert c.get("/api/auth/config").json() == {"password_reset": False}
+    assert c.post("/api/auth/forgot", json={"email": "a@example.com"}).status_code == 503
+    monkeypatch.setenv("TRADEAI_SMTP_HOST", "smtp.example.com"); monkeypatch.setenv("TRADEAI_MAIL_FROM", "TRADE-AI <no-reply@example.com>")
+    get_settings.cache_clear()
+    sent = []
+    from app import mailer
+    monkeypatch.setattr(mailer, "send", lambda to, subject, text: sent.append((to, text)) or True)
+    signup(c)
+    same = c.post("/api/auth/forgot", json={"email": "nobody@example.com"}).json()
+    assert c.post("/api/auth/forgot", json={"email": "A@example.com"}).json() == same and len(sent) == 1   # no enumeration
+    token = sent[0][1].split("token=")[1].split()[0]
+    assert c.post("/api/auth/reset", json={"token": "x" * 30, "new_password": "brand new pass"}).status_code == 400
+    r = c.post("/api/auth/reset", json={"token": token, "new_password": "brand new pass"})
+    assert r.status_code == 200 and r.json()["token"]
+    assert c.post("/api/auth/reset", json={"token": token, "new_password": "again again"}).status_code == 400   # single use
+    assert c.post("/api/auth/login", json={"email": "a@example.com", "password": "brand new pass"}).status_code == 200
+    for _ in range(4):
+        c.post("/api/auth/forgot", json={"email": "a@example.com"})
+    assert len(sent) == 3            # capped at 3 emails per hour
