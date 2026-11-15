@@ -868,7 +868,8 @@
           <ul style="margin:0;padding-left:18px;font-size:.88rem;color:var(--tx-2);display:grid;gap:4px">
             <li>While a signal is live, its entry, stop and targets are hidden. Unlocking one uses one of your ${C.pricing.trialSignals} free trial signals.</li>
             <li>Opening a signal you already unlocked again is free. Finished signals are shown in full to everyone.</li>
-            <li>Signals are experimental analysis, not advice. TRADE-AI never places trades.</li></ul></section></div>`;
+            <li>Signals are experimental analysis, not advice. TRADE-AI never places trades.</li></ul>
+          <p style="margin:12px 0 0;font-size:.84rem"><a href="legal/terms.html">Terms</a> · <a href="legal/privacy.html">Privacy</a> · <a href="legal/risk.html">Risk disclaimer</a></p></section></div>`;
         $("#signout", el).addEventListener("click", () => { TA.Auth.signOut(); TA.toast("Signed out.", "info"); route(); });
         $("#pwForm", el).addEventListener("submit", async (e) => {
           e.preventDefault();
@@ -894,6 +895,7 @@
             <div class="field"><label for="em">Email</label><input id="em" type="email" autocomplete="email" required /></div>
             <div class="field"><label for="pw">Password</label><input id="pw" type="password" minlength="8" autocomplete="${mode === "login" ? "current-password" : "new-password"}" required /><span class="hint">At least 8 characters.</span></div>
             <span class="err" id="authErr" role="alert"></span>
+            ${mode === "register" ? `<p class="muted" style="margin:0;font-size:.8rem">By creating an account you agree to the <a href="legal/terms.html" target="_blank" rel="noopener">Terms</a> and <a href="legal/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>, and confirm you've read the <a href="legal/risk.html" target="_blank" rel="noopener">Risk disclaimer</a>. You must be 18 or over.</p>` : ""}
             <button class="btn btn-primary" type="submit">${mode === "login" ? "Sign in" : "Create account"}</button>
           </form>
           <p style="margin:14px 0 0;font-size:.88rem">${mode === "login" ? "No account yet?" : "Already have one?"} <a href="#" id="swap">${mode === "login" ? "Create one" : "Sign in"}</a>${mode === "login" && feats.password_reset ? ` · <a href="#" id="forgot">Forgot password?</a>` : ""}</p></section>`;

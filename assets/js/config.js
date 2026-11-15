@@ -56,9 +56,9 @@ window.TRADE_AI_CONFIG = {
 
   links: {
     methodology: "https://github.com/Sahan308/trade-ai/blob/main/research/RESULTS.md",
-    risk: "#risk-disclosure",
-    privacy: "#privacy",
-    terms: "#terms",
-    contact: "mailto:hello@example.com"
+    risk: "legal/risk.html",
+    privacy: "legal/privacy.html",
+    terms: "legal/terms.html",
+    contact: "https://github.com/Sahan308/trade-ai/issues"
   }
 };
