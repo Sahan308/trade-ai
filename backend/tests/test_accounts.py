@@ -173,3 +173,22 @@ def test_login_lockout_and_auth_ip_limit(c):
 def test_security_headers(c):
     r = c.get("/health")
     assert r.headers["x-content-type-options"] == "nosniff" and r.headers["x-frame-options"] == "DENY"
+
+
+def test_usage_stats_privacy_and_admin(c, monkeypatch):
+    for _ in range(3):
+        assert c.post("/api/stats/hit", json={"path": "/signals"}).status_code == 204
+    c.post("/api/stats/hit", json={"path": "/signals"}, headers={"user-agent": "other-browser"})
+    c.post("/api/stats/hit", json={"path": "/dashboard"}, headers={"DNT": "1"})          # honoured: not counted
+    c.post("/api/stats/hit", json={"path": "../../etc"})                                # junk: ignored
+    h = signup(c, "boss@example.com")
+    assert c.get("/api/stats/summary", headers=h).status_code == 403
+    monkeypatch.setenv("TRADEAI_ADMIN_EMAILS", "Boss@example.com"); get_settings.cache_clear()
+    assert c.get("/api/auth/me", headers=h).json()["is_admin"]
+    d = c.get("/api/stats/summary", headers=h).json()
+    assert d["pages"] == [{"path": "/signals", "views": 4, "visitors": 2}]
+    assert d["totals"]["accounts"] == 1
+    s = next(db.get_session())
+    from app.models import DailyVisitor
+    assert all(len(v.visitor) == 32 and "." not in v.visitor for v in s.query(DailyVisitor))   # hashes only, no IPs
+    s.close()

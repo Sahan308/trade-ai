@@ -133,3 +133,25 @@ class SignalUnlock(Base):
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id"), nullable=False, index=True)
     signal_id: Mapped[str] = mapped_column(String(36), ForeignKey("signals.id"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class PageView(Base):
+    """Daily aggregate page views per path. No cookies, IPs or user agents are stored."""
+    __tablename__ = "page_views"
+    __table_args__ = (UniqueConstraint("day", "path"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    day: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    path: Mapped[str] = mapped_column(String(64), nullable=False)
+    views: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    visitors: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class DailyVisitor(Base):
+    """One row per (day, path, salted hash). The salt rotates daily and is never stored, so hashes can't be
+    linked across days or reversed to an IP. Rows older than 2 days are deleted."""
+    __tablename__ = "daily_visitors"
+    __table_args__ = (UniqueConstraint("day", "path", "visitor"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    day: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    path: Mapped[str] = mapped_column(String(64), nullable=False)
+    visitor: Mapped[str] = mapped_column(String(32), nullable=False)

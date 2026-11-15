@@ -51,7 +51,7 @@ def me(session: Session, user: User) -> dict:
         sub = {"status": user.subscription_status, "renews_at": iso(user.subscription_renews_at),
                "ends_at": iso(user.subscription_ends_at), "portal_url": user.customer_portal_url}
     return {"id": user.id, "email": user.email, "created_at": user.created_at.isoformat(), "usage": usage(session, user),
-            "subscription": sub}
+            "subscription": sub, "is_admin": user.email.lower() in get_settings().admin_emails}
 
 
 @router.post("/api/auth/register", status_code=201, summary="Create an account (starts the free trial)")

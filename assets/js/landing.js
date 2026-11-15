@@ -46,3 +46,12 @@
 
   TA.initReveal();
 })();
+
+// Privacy-friendly landing page view (no cookies; skipped when Do-Not-Track / GPC is on).
+(function () {
+  try {
+    const b = window.TRADE_AI_CONFIG && window.TRADE_AI_CONFIG.api && window.TRADE_AI_CONFIG.api.backendBaseUrl;
+    if (!b || navigator.doNotTrack === "1" || navigator.globalPrivacyControl) return;
+    fetch(b.replace(/\/$/, "") + "/api/stats/hit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ path: "/" }), keepalive: true }).catch(() => {});
+  } catch (e) {}
+})();

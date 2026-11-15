@@ -34,6 +34,7 @@
     { id: "billing", label: "Billing", icon: "card", ready: true }
   ];
   const byId = Object.fromEntries(ROUTES.filter((r) => r.id).map((r) => [r.id, r]));
+  byId.stats = { id: "stats", label: "Usage stats", icon: "chart", ready: true };   // admin-only, not in the menu
 
   $("#sideNav").innerHTML = ROUTES.map((r) => r.group
     ? `<div class="side-label">${r.group}</div>`
@@ -698,6 +699,36 @@
       every(60000, loadBoard);
     },
 
+    async stats(el) {
+      if (!TA.Auth.available() || !TA.Auth.signedIn()) { el.innerHTML = `<section class="card">${state("off", "Sign in as an admin", "Usage stats are only visible to admin accounts.")}</section>`; return; }
+      let days = 30;
+      const draw = async () => {
+        el.innerHTML = `<div class="skeleton" style="height:260px;border-radius:18px"></div>`;
+        let d;
+        try { d = await TA.Auth.stats(days); } catch (e) { el.innerHTML = `<section class="card">${state("error", "Can't show stats", TA.esc(e.message))}</section>`; return; }
+        if (!el.isConnected) return;
+        const sum = (k) => d.daily.reduce((a, x) => a + x[k], 0), max = Math.max(1, ...d.daily.map((x) => x.views));
+        const T = d.totals;
+        el.innerHTML = `<section class="card panel"><div class="panel-head"><h2>${TA.icon("chart")}Usage stats</h2>
+            <div class="seg" role="group" aria-label="Range">${[7, 30, 90].map((n) => `<button data-sdays="${n}" aria-pressed="${n === days}">${n} days</button>`).join("")}</div></div>
+          <div class="result-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+            <div class="result"><small>Page views</small><div>${sum("views").toLocaleString()}</div></div>
+            <div class="result"><small>${term("Visits", "Unique visitor-page pairs per day, summed. A person viewing 3 pages on one day counts 3.")}</small><div>${sum("visitors").toLocaleString()}</div></div>
+            <div class="result"><small>Accounts</small><div>${T.accounts}</div></div>
+            <div class="result"><small>Paying</small><div>${T.paid}</div></div>
+            <div class="result"><small>Trial unlocks</small><div>${T.unlocks}</div></div>
+            <div class="result"><small>Signals generated</small><div>${T.signals}</div></div></div>
+          <h3 style="font-size:.9rem;margin:18px 0 8px">Page views per day</h3>
+          ${d.daily.length ? `<div style="display:flex;align-items:flex-end;gap:3px;height:120px" role="img" aria-label="Daily page views">${d.daily.map((x) => `<div title="${x.day}: ${x.views} views" style="flex:1;min-width:3px;height:${Math.max(3, (x.views / max) * 100)}%;background:linear-gradient(180deg,#36D6E7,#18B89A);border-radius:3px 3px 0 0;box-shadow:0 0 8px rgba(54,214,231,.35)"></div>`).join("")}</div>
+            <div class="muted" style="display:flex;justify-content:space-between;font-size:.75rem;margin-top:4px"><span>${d.daily[0].day}</span><span>${d.daily[d.daily.length - 1].day}</span></div>` : `<p class="muted" style="margin:0">No visits recorded in this period yet.</p>`}
+          <h3 style="font-size:.9rem;margin:18px 0 8px">Top pages</h3>
+          ${d.pages.length ? `<div class="table-wrap"><table><thead><tr><th>Page</th><th class="r">Views</th><th class="r">Visits</th></tr></thead><tbody>${d.pages.map((p) => `<tr><td>${TA.esc(p.path)}</td><td class="r num">${p.views}</td><td class="r num">${p.visitors}</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted" style="margin:0">Nothing yet.</p>`}
+          <p class="muted" style="font-size:.8rem;margin:12px 0 0">${TA.esc(d.note)} Visitors with Do-Not-Track or Global Privacy Control switched on aren't counted.</p></section>`;
+        el.querySelectorAll("[data-sdays]").forEach((b) => b.addEventListener("click", () => { days = +b.dataset.sdays; draw(); }));
+      };
+      draw();
+    },
+
     async scanner(el) {
       const B = TA.Providers && TA.Providers.binance;
       const tfs = ["1H", "4H", "1D"];
@@ -773,7 +804,7 @@
             <div class="level" style="grid-column:1/-1"><dt>Email</dt><dd style="font-family:var(--font-sans)">${TA.esc(user.email)}</dd></div>
             <div class="level"><dt>Trial signals used</dt><dd>${u.limit == null ? "Unlimited" : `${u.used} of ${u.limit}`}</dd></div>
             <div class="level"><dt>Member since</dt><dd style="font-family:var(--font-sans)">${TA.fmtTime(user.created_at)}</dd></div></dl>
-          <button class="btn" id="signout">${TA.icon("logout", "icon-sm")}Sign out</button></section>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="signout">${TA.icon("logout", "icon-sm")}Sign out</button>${user.is_admin ? `<a class="btn" href="#/stats">${TA.icon("chart", "icon-sm")}Usage stats</a>` : ""}</div></section>
           <section class="card panel span-6"><h2 style="font-size:1rem">${TA.icon("shield")}Change password</h2>
             <form class="auth-form" id="pwForm" novalidate>
               <div class="field"><label for="pw0">Current password</label><input id="pw0" type="password" autocomplete="current-password" /></div>
@@ -871,6 +902,7 @@
     document.querySelectorAll("[data-route]").forEach((a) => a.dataset.route === r.id ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
     $("#viewTitle").textContent = r.label;
     document.title = `${r.label} · TRADE-AI`;
+    if (TA.track && r.id !== "stats") TA.track("/app/" + r.id);
     const host = $("#content");
     const view = document.createElement("div");
     view.className = "view"; view.style.display = "grid"; view.style.gap = "16px";

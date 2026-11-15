@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     trial_signals: int = 3
     # Billing (Lemon Squeezy). Empty secret = webhook disabled.
     lemonsqueezy_webhook_secret: str = ""
+    # Comma-separated emails allowed to view usage stats
+    admin_emails: Annotated[list[str], NoDecode] = []
 
     @field_validator("database_url", mode="before")
     @classmethod
@@ -62,6 +64,13 @@ class Settings(BaseSettings):
             raise ValueError("Wildcard CORS origin is not allowed in production")
         return v
 
+
+    @field_validator("admin_emails", mode="before")
+    @classmethod
+    def split_admin(cls, v):
+        if isinstance(v, str):
+            return [x.strip().lower() for x in v.split(",") if x.strip()]
+        return [x.lower() for x in (v or [])]
 
     @field_validator("auth_secret")
     @classmethod

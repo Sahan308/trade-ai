@@ -25,6 +25,15 @@
   };
   const errText = async (res) => { try { const j = await res.json(); return typeof j.detail === "string" ? j.detail : (j.error && j.error.message) || (Array.isArray(j.detail) ? "Check the email and password (8+ characters)." : `HTTP ${res.status}`); } catch { return `HTTP ${res.status}`; } };
 
+  // Privacy-friendly page-view ping: no cookies, honours Do-Not-Track / GPC, path only (no query or hash data).
+  TA.track = (path) => {
+    try {
+      if (!backend() || navigator.doNotTrack === "1" || navigator.globalPrivacyControl) return;
+      const body = JSON.stringify({ path: String(path).toLowerCase().slice(0, 64) });
+      fetch(`${backend()}/api/stats/hit`, { method: "POST", headers: { "Content-Type": "application/json" }, body, keepalive: true, mode: "cors" }).catch(() => {});
+    } catch {}
+  };
+
   TA.Auth = {
     available: () => Boolean(backend()),
     signedIn: () => Boolean(getToken()),
@@ -58,6 +67,11 @@
       u.searchParams.set("checkout[custom][user_id]", this.user.id);
       u.searchParams.set("checkout[email]", this.user.email);
       return u.toString();
+    },
+    async stats(days = 30) {
+      const res = await authed(`${backend()}/api/stats/summary?days=${days}`);
+      if (!res.ok) throw new Error(await errText(res));
+      return res.json();
     },
     signOut() { setToken(null); this.user = null; document.dispatchEvent(new CustomEvent("ta:auth")); }
   };
