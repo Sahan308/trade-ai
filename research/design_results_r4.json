@@ -1,0 +1,70 @@
+{
+  "protocol": "research/PROTOCOL_R4.md",
+  "missing_symbols": [],
+  "design": {
+    "period": [
+      "2020-01-01T00:00:00+00:00",
+      "2022-01-01T00:00:00+00:00"
+    ],
+    "candidates": {
+      "E1": {
+        "total_return": 9.6147,
+        "cagr": 2.258,
+        "sharpe": 2.031,
+        "max_drawdown": -0.5106,
+        "days": 731,
+        "turnover_per_year": 19.86,
+        "avg_exposure": 0.626,
+        "eligible": false
+      },
+      "E2": {
+        "total_return": 10.6132,
+        "cagr": 2.4078,
+        "sharpe": 2.029,
+        "max_drawdown": -0.5981,
+        "days": 731,
+        "turnover_per_year": 22.79,
+        "avg_exposure": 0.692,
+        "eligible": false
+      },
+      "E3": {
+        "total_return": 7.3089,
+        "cagr": 1.8825,
+        "sharpe": 2.029,
+        "max_drawdown": -0.354,
+        "days": 731,
+        "turnover_per_year": 20.07,
+        "avg_exposure": 0.511,
+        "eligible": true
+      },
+      "E4": {
+        "total_return": 2.984,
+        "cagr": 0.996,
+        "sharpe": 1.304,
+        "max_drawdown": -0.6218,
+        "days": 731,
+        "turnover_per_year": 17.52,
+        "avg_exposure": 0.615,
+        "eligible": false
+      }
+    },
+    "benchmarks": {
+      "btc_buy_hold": {
+        "total_return": 5.6349,
+        "cagr": 1.5792,
+        "sharpe": 1.618,
+        "max_drawdown": -0.536,
+        "days": 730
+      },
+      "equal_weight_top20": {
+        "total_return": 14.2893,
+        "cagr": 2.9175,
+        "sharpe": 1.85,
+        "max_drawdown": -0.6758,
+        "days": 730
+      }
+    }
+  },
+  "chosen": "E3",
+  "generated_at": "2026-11-15T10:33:35.915983+00:00"
+}
