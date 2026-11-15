@@ -68,6 +68,23 @@
       u.searchParams.set("checkout[email]", this.user.email);
       return u.toString();
     },
+    async features() {
+      try { const r = await fetch(`${backend()}/api/auth/config`); return r.ok ? r.json() : {}; } catch { return {}; }
+    },
+    async forgot(email) {
+      try {
+        const res = await fetch(`${backend()}/api/auth/forgot`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+        return res.ok ? { ok: true, message: (await res.json()).message } : { ok: false, error: await errText(res) };
+      } catch (e) { return { ok: false, error: e.message }; }
+    },
+    async reset(token, password) {
+      try {
+        const res = await fetch(`${backend()}/api/auth/reset`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, new_password: password }) });
+        if (!res.ok) return { ok: false, error: await errText(res) };
+        const j = await res.json(); setToken(j.token); this.user = j.user; document.dispatchEvent(new CustomEvent("ta:auth"));
+        return { ok: true };
+      } catch (e) { return { ok: false, error: e.message }; }
+    },
     async stats(days = 30) {
       const res = await authed(`${backend()}/api/stats/summary?days=${days}`);
       if (!res.ok) throw new Error(await errText(res));

@@ -35,6 +35,7 @@
   ];
   const byId = Object.fromEntries(ROUTES.filter((r) => r.id).map((r) => [r.id, r]));
   byId.stats = { id: "stats", label: "Usage stats", icon: "chart", ready: true };   // admin-only, not in the menu
+  byId.reset = { id: "reset", label: "Reset password", icon: "user", ready: true }; // opened from the reset email
 
   $("#sideNav").innerHTML = ROUTES.map((r) => r.group
     ? `<div class="side-label">${r.group}</div>`
@@ -699,6 +700,22 @@
       every(60000, loadBoard);
     },
 
+    async reset(el) {
+      const token = new URLSearchParams((location.hash.split("?")[1]) || "").get("token");
+      if (!token) { el.innerHTML = `<section class="card">${state("error", "This reset link is incomplete", "Open the link from your email again, or request a new one from Sign in.")}</section>`; return; }
+      el.innerHTML = `<section class="card panel" style="max-width:520px"><div class="panel-head"><h2>${TA.icon("user")}Choose a new password</h2></div>
+        <form class="auth-form" id="rsForm" novalidate>
+          <div class="field"><label for="np">New password</label><input id="np" type="password" minlength="8" autocomplete="new-password" /><span class="hint">At least 8 characters.</span></div>
+          <span class="err" id="rsErr" role="alert"></span><button class="btn btn-primary" type="submit">Save new password</button></form></section>`;
+      $("#rsForm", el).addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const r = await TA.Auth.reset(token, $("#np", el).value);
+        if (!r.ok) { $("#rsErr", el).textContent = r.error; return; }
+        TA.toast("Password updated. You're signed in.", "success");
+        history.replaceState(null, "", location.pathname + location.search + "#/account"); route();
+      });
+    },
+
     async stats(el) {
       if (!TA.Auth.available() || !TA.Auth.signedIn()) { el.innerHTML = `<section class="card">${state("off", "Sign in as an admin", "Usage stats are only visible to admin accounts.")}</section>`; return; }
       let days = 30;
@@ -836,6 +853,8 @@
         return;
       }
       let mode = "login";
+      const feats = await TA.Auth.features();
+      if (!el.isConnected) return;
       const draw = () => {
         el.innerHTML = `<section class="card panel" style="max-width:520px"><div class="panel-head"><h2>${TA.icon("user")}${mode === "login" ? "Sign in" : "Create your free account"}</h2></div>
           <p class="muted" style="margin:0 0 14px;font-size:.88rem">${mode === "login" ? "Sign in to unlock signals." : `Start the free trial: unlock ${C.pricing.trialSignals} live signals. No card needed.`}</p>
@@ -845,8 +864,17 @@
             <span class="err" id="authErr" role="alert"></span>
             <button class="btn btn-primary" type="submit">${mode === "login" ? "Sign in" : "Create account"}</button>
           </form>
-          <p style="margin:14px 0 0;font-size:.88rem">${mode === "login" ? "No account yet?" : "Already have one?"} <a href="#" id="swap">${mode === "login" ? "Create one" : "Sign in"}</a></p></section>`;
+          <p style="margin:14px 0 0;font-size:.88rem">${mode === "login" ? "No account yet?" : "Already have one?"} <a href="#" id="swap">${mode === "login" ? "Create one" : "Sign in"}</a>${mode === "login" && feats.password_reset ? ` · <a href="#" id="forgot">Forgot password?</a>` : ""}</p></section>`;
         $("#swap", el).addEventListener("click", (e) => { e.preventDefault(); mode = mode === "login" ? "register" : "login"; draw(); });
+        const fg = $("#forgot", el);
+        if (fg) fg.addEventListener("click", async (e) => {
+          e.preventDefault();
+          const email = $("#em", el).value.trim();
+          if (!email) { $("#authErr", el).textContent = "Type your email above first, then click Forgot password."; return; }
+          const r = await TA.Auth.forgot(email);
+          $("#authErr", el).textContent = "";
+          TA.toast(r.ok ? r.message : r.error, r.ok ? "success" : "error");
+        });
         $("#authForm", el).addEventListener("submit", async (e) => {
           e.preventDefault();
           const btn = e.target.querySelector("button"); btn.disabled = true;
@@ -902,7 +930,7 @@
     document.querySelectorAll("[data-route]").forEach((a) => a.dataset.route === r.id ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
     $("#viewTitle").textContent = r.label;
     document.title = `${r.label} · TRADE-AI`;
-    if (TA.track && r.id !== "stats") TA.track("/app/" + r.id);
+    if (TA.track && r.id !== "stats" && r.id !== "reset") TA.track("/app/" + r.id);
     const host = $("#content");
     const view = document.createElement("div");
     view.className = "view"; view.style.display = "grid"; view.style.gap = "16px";
