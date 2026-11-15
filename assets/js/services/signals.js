@@ -136,6 +136,7 @@
       if (!res.ok) throw new Error(await errText(res));
       return res.json();
     },
+    adoptToken(t) { setToken(t); this.user = null; document.dispatchEvent(new CustomEvent("ta:auth")); },
     signOut() { setToken(null); this.user = null; document.dispatchEvent(new CustomEvent("ta:auth")); }
   };
   const fromApi = (x) => ({

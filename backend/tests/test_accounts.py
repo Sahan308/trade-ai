@@ -218,3 +218,17 @@ def test_google_signin(c, monkeypatch):
     assert c.post("/api/auth/google", json={"credential": "x" * 40}).status_code == 401           # token for another app
     monkeypatch.setattr(httpx, "get", lambda *a, **k: R(400, {}))
     assert c.post("/api/auth/google", json={"credential": "x" * 40}).status_code == 401           # invalid/expired token
+
+
+def test_google_redirect_mode(c, monkeypatch):
+    monkeypatch.setenv("TRADEAI_GOOGLE_CLIENT_ID", "cid.apps.googleusercontent.com"); get_settings.cache_clear()
+
+    class R:
+        status_code = 200
+        def json(self): return {"aud": "cid.apps.googleusercontent.com", "iss": "accounts.google.com", "email": "r@example.com", "email_verified": True}
+    import httpx
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: R())
+    r = c.post("/api/auth/google/redirect", content="credential=" + "x" * 40, headers={"Content-Type": "application/x-www-form-urlencoded"}, follow_redirects=False)
+    assert r.status_code == 303 and "#/oauth?token=" in r.headers["location"] and "new=1" in r.headers["location"]
+    bad = c.post("/api/auth/google/redirect", content="credential=short", headers={"Content-Type": "application/x-www-form-urlencoded"}, follow_redirects=False)
+    assert bad.status_code == 303 and "#/login?error=" in bad.headers["location"]

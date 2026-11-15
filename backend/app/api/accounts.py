@@ -260,3 +260,24 @@ def google_signin(body: GoogleCredential, session: Session = Depends(get_session
 @router.get("/api/auth/providers", include_in_schema=False)
 def providers():
     return {"google_client_id": get_settings().google_client_id or None}
+
+
+# Redirect mode: Google POSTs the ID token here (form-encoded) instead of using a pop-up, then we send the browser back
+# to the app with a session token in the URL fragment (fragments are never sent to servers).
+from fastapi import Request as _Request  # noqa: E402
+from fastapi.responses import RedirectResponse as _Redirect  # noqa: E402
+
+
+@router.post("/api/auth/google/redirect", include_in_schema=False)
+async def google_redirect(request: _Request, session: Session = Depends(get_session)):
+    from urllib.parse import parse_qs, quote
+    app_url = get_settings().public_site_url
+    raw = (await request.body()).decode("utf-8", "replace")
+    cred = (parse_qs(raw).get("credential") or [""])[0]
+    if not get_settings().google_client_id or len(cred) < 20:
+        return _Redirect(f"{app_url}#/login?error=" + quote("Google sign-in isn't available"), status_code=303)
+    try:
+        r = google_signin(GoogleCredential(credential=cred), session)
+    except HTTPException as e:
+        return _Redirect(f"{app_url}#/login?error=" + quote(str(e.detail)), status_code=303)
+    return _Redirect(f"{app_url}#/oauth?token={r['token']}&new={1 if r['created'] else 0}", status_code=303)

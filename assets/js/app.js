@@ -370,7 +370,8 @@
     gisLoading = gisLoading || new Promise((ok, bad) => { const sc = document.createElement("script"); sc.src = "https://accounts.google.com/gsi/client"; sc.async = true; sc.onload = ok; sc.onerror = bad; document.head.appendChild(sc); });
     try { await gisLoading; } catch { return; }
     if (!btn.isConnected || !window.google || !google.accounts) return;
-    google.accounts.id.initialize({ client_id: cid, ux_mode: "popup", cancel_on_tap_outside: true, callback: async (resp) => {
+    // Redirect mode (no pop-up): works in in-app browsers and phones that block pop-ups.
+    google.accounts.id.initialize({ client_id: cid, ux_mode: "redirect", login_uri: `${C.api.backendBaseUrl.replace(/\/$/, "")}/api/auth/google/redirect`, callback: async (resp) => {
       const r = await TA.Auth.google(resp.credential);
       if (!r.ok) { TA.toast(r.error, "error"); return; }
       TA.toast(r.created ? `Welcome! Your ${C.pricing.trialDays}-day Pro trial has started.` : "Signed in with Google.", "success");
@@ -1060,7 +1061,7 @@
   let current;
   // Sign-in wall: when accounts are available, nothing but the sign-in/register/reset pages opens without a session.
   let authMode = null;
-  const OPEN_ROUTES = ["account", "login", "signup", "reset"];
+  const OPEN_ROUTES = ["account", "login", "signup", "reset", "oauth"];
   function route() {
     closeLive();
     let id = (location.hash.match(/^#\/([\w-]+)/) || [])[1] || "dashboard";
@@ -1071,7 +1072,23 @@
       history.replaceState(null, "", location.pathname + location.search + "#/login");
       id = "login";
     }
-    if (id === "login" || id === "signup") { authMode = id === "signup" ? "register" : "login"; id = "account"; }
+    if (id === "oauth") {   // back from Google (redirect mode): store the session and continue
+      const q = new URLSearchParams(location.hash.split("?")[1] || "");
+      const tok = q.get("token");
+      history.replaceState(null, "", location.pathname + location.search + "#/dashboard");
+      if (tok) {
+        TA.Auth.adoptToken(tok);
+        TA.toast(q.get("new") === "1" ? `Welcome! Your ${C.pricing.trialDays}-day Pro trial has started.` : "Signed in with Google.", "success");
+        const back = sessionStorage.getItem("ta-after-auth"); sessionStorage.removeItem("ta-after-auth");
+        if (back && !/^#\/(login|signup|account|reset|oauth)/.test(back)) history.replaceState(null, "", location.pathname + location.search + back);
+      }
+      return route();
+    }
+    if (id === "login" || id === "signup") {
+      authMode = id === "signup" ? "register" : "login"; id = "account";
+      const err = new URLSearchParams(location.hash.split("?")[1] || "").get("error");
+      if (err) setTimeout(() => TA.toast(err, "error"), 300);
+    }
     const r = byId[id] || byId.dashboard;
     current = r.id;
     document.querySelectorAll("[data-route]").forEach((a) => a.dataset.route === r.id ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
