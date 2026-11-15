@@ -360,6 +360,28 @@
   // ---------- Views ----------
   // Pro features open with an active trial or paid plan. Their data comes from public exchange APIs in the browser,
   // so this is a product gate rather than a security boundary.
+  // Sign in with Google (Google Identity Services). Shown only when the backend has a Client ID configured.
+  let gisLoading = null;
+  async function mountGoogle(mode) {
+    const wrap = $("#gWrap"), btn = $("#gBtn");
+    if (!wrap || !TA.Auth.available()) return;
+    const { google_client_id: cid } = await TA.Auth.providers();
+    if (!cid || !wrap.isConnected) return;
+    gisLoading = gisLoading || new Promise((ok, bad) => { const sc = document.createElement("script"); sc.src = "https://accounts.google.com/gsi/client"; sc.async = true; sc.onload = ok; sc.onerror = bad; document.head.appendChild(sc); });
+    try { await gisLoading; } catch { return; }
+    if (!btn.isConnected || !window.google || !google.accounts) return;
+    google.accounts.id.initialize({ client_id: cid, ux_mode: "popup", cancel_on_tap_outside: true, callback: async (resp) => {
+      const r = await TA.Auth.google(resp.credential);
+      if (!r.ok) { TA.toast(r.error, "error"); return; }
+      TA.toast(r.created ? `Welcome! Your ${C.pricing.trialDays}-day Pro trial has started.` : "Signed in with Google.", "success");
+      const back = sessionStorage.getItem("ta-after-auth"); sessionStorage.removeItem("ta-after-auth");
+      location.hash = back && !/^#\/(login|signup|account|reset)/.test(back) ? back : "#/dashboard";
+    } });
+    btn.innerHTML = "";
+    google.accounts.id.renderButton(btn, { theme: "filled_black", size: "large", shape: "pill", text: mode === "register" ? "signup_with" : "signin_with", width: Math.min(360, btn.clientWidth || 320) });
+    wrap.hidden = false;
+  }
+
   async function proGate(el, title, blurb) {
     if (store.demo || !TA.Auth.available()) return true;
     const u = (await TA.Signals.getUsage()).data || {};
@@ -974,8 +996,10 @@
             ${mode === "register" ? `<p class="muted" style="margin:0;font-size:.8rem">By creating an account you agree to the <a href="legal/terms.html" target="_blank" rel="noopener">Terms</a> and <a href="legal/privacy.html" target="_blank" rel="noopener">Privacy Policy</a>, and confirm you've read the <a href="legal/risk.html" target="_blank" rel="noopener">Risk disclaimer</a>. You must be 18 or over.</p>` : ""}
             <button class="btn btn-primary" type="submit">${mode === "login" ? "Sign in" : "Create account"}</button>
           </form>
+          <div id="gWrap" hidden><div style="display:flex;align-items:center;gap:10px;margin:16px 0 12px;color:var(--tx-3);font-size:.8rem"><span style="flex:1;height:1px;background:rgba(145,163,176,.2)"></span>or<span style="flex:1;height:1px;background:rgba(145,163,176,.2)"></span></div><div id="gBtn" style="display:flex;justify-content:center;min-height:44px"></div></div>
           <p style="margin:14px 0 0;font-size:.88rem">${mode === "login" ? "No account yet?" : "Already have one?"} <a href="#" id="swap">${mode === "login" ? "Create one" : "Sign in"}</a>${mode === "login" && feats.password_reset ? ` · <a href="#" id="forgot">Forgot password?</a>` : ""}</p></section>`;
         $("#swap", el).addEventListener("click", (e) => { e.preventDefault(); mode = mode === "login" ? "register" : "login"; draw(); });
+        mountGoogle(mode);
         const fg = $("#forgot", el);
         if (fg) fg.addEventListener("click", async (e) => {
           e.preventDefault();

@@ -197,3 +197,24 @@ def test_password_reset_by_email(c, monkeypatch):
     for _ in range(4):
         c.post("/api/auth/forgot", json={"email": "a@example.com"})
     assert len(sent) == 3            # capped at 3 emails per hour
+
+
+def test_google_signin(c, monkeypatch):
+    from app.api import accounts
+    assert c.post("/api/auth/google", json={"credential": "x" * 40}).status_code == 503
+    monkeypatch.setenv("TRADEAI_GOOGLE_CLIENT_ID", "cid.apps.googleusercontent.com"); get_settings.cache_clear()
+    assert c.get("/api/auth/providers").json() == {"google_client_id": "cid.apps.googleusercontent.com"}
+
+    class R:
+        def __init__(self, code, data): self.status_code, self._d = code, data
+        def json(self): return self._d
+    good = {"aud": "cid.apps.googleusercontent.com", "iss": "https://accounts.google.com", "email": "G@Example.com", "email_verified": "true"}
+    import httpx
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: R(200, good))
+    r = c.post("/api/auth/google", json={"credential": "x" * 40}).json()
+    assert r["created"] and r["user"]["email"] == "g@example.com" and r["user"]["usage"]["pro"] is True
+    assert c.post("/api/auth/google", json={"credential": "x" * 40}).json()["created"] is False     # same account next time
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: R(200, {**good, "aud": "someone-else"}))
+    assert c.post("/api/auth/google", json={"credential": "x" * 40}).status_code == 401           # token for another app
+    monkeypatch.setattr(httpx, "get", lambda *a, **k: R(400, {}))
+    assert c.post("/api/auth/google", json={"credential": "x" * 40}).status_code == 401           # invalid/expired token

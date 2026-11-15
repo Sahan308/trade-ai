@@ -210,3 +210,53 @@ def reset(body: Reset, session: Session = Depends(get_session)):
     session.commit()
     _FAILS.pop(user.email, None)
     return {"token": issue_token(user.id), "user": me(session, user)}
+
+
+# ---- Sign in with Google (Google Identity Services ID token) ----
+class GoogleCredential(BaseModel):
+    credential: str = Field(min_length=20, max_length=4096)
+
+
+def verify_google_token(token: str) -> dict:
+    """Verify an ID token with Google's tokeninfo endpoint (checks signature and expiry); then check audience/issuer."""
+    import httpx
+    cid = get_settings().google_client_id
+    try:
+        r = httpx.get("https://oauth2.googleapis.com/tokeninfo", params={"id_token": token}, timeout=10)
+    except httpx.HTTPError:
+        raise HTTPException(503, "Couldn't reach Google. Try again.")
+    if r.status_code != 200:
+        raise HTTPException(401, "Google sign-in failed. Please try again.")
+    info = r.json()
+    if info.get("aud") != cid or info.get("iss") not in ("accounts.google.com", "https://accounts.google.com"):
+        raise HTTPException(401, "Google sign-in failed. Please try again.")
+    if str(info.get("email_verified")).lower() != "true" or not info.get("email"):
+        raise HTTPException(401, "Your Google email address isn't verified.")
+    return info
+
+
+@router.post("/api/auth/google", summary="Sign in or sign up with a Google ID token")
+def google_signin(body: GoogleCredential, session: Session = Depends(get_session)):
+    if not get_settings().google_client_id:
+        raise HTTPException(503, "Google sign-in isn't available")
+    info = verify_google_token(body.credential)
+    email = info["email"].strip().lower()
+    user = session.scalar(select(User).where(User.email == email))
+    created = False
+    if user is None:
+        from datetime import datetime, timedelta, timezone
+        import secrets as _s
+        # Random unusable password: the account signs in with Google (or can set one via "Forgot password").
+        user = User(id=str(uuid.uuid4()), email=email, password_hash=hash_password(_s.token_urlsafe(32)), plan="trial",
+                    trial_ends_at=datetime.now(timezone.utc) + timedelta(days=get_settings().trial_days))
+        session.add(user)
+        session.add(AuditLog(actor=user.id, action="account.created.google", target=user.id))
+        created = True
+    session.commit()
+    _FAILS.pop(email, None)
+    return {"token": issue_token(user.id), "user": me(session, user), "created": created}
+
+
+@router.get("/api/auth/providers", include_in_schema=False)
+def providers():
+    return {"google_client_id": get_settings().google_client_id or None}

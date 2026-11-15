@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
     public_site_url: str = "https://sahan308.github.io/trade-ai/app.html"
+    # Google sign-in (OAuth Client ID from Google Cloud; public, not a secret). Empty = disabled.
+    google_client_id: str = ""
     # Web push (VAPID). Generated on the server; empty = browser push disabled.
     vapid_public_key: str = ""
     vapid_private_key: str = ""

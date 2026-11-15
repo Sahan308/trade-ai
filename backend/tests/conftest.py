@@ -9,7 +9,7 @@ from app.config import get_settings
 def _isolate_from_server_env(monkeypatch):
     """Tests must not pick up real secrets/integrations from a deployment's .env file."""
     for k in ("SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD", "MAIL_FROM", "VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY",
-              "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "LEMONSQUEEZY_WEBHOOK_SECRET", "ADMIN_EMAILS"):
+              "TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID", "LEMONSQUEEZY_WEBHOOK_SECRET", "ADMIN_EMAILS", "GOOGLE_CLIENT_ID"):
         monkeypatch.setenv(f"TRADEAI_{k}", "")
     get_settings.cache_clear()
     yield

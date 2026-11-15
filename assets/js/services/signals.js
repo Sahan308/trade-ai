@@ -101,6 +101,19 @@
       u.searchParams.set("checkout[email]", this.user.email);
       return u.toString();
     },
+    async providers() {
+      if (this._prov) return this._prov;
+      try { const r = await fetch(`${backend()}/api/auth/providers`); this._prov = r.ok ? await r.json() : {}; } catch { this._prov = {}; }
+      return this._prov;
+    },
+    async google(credential) {
+      try {
+        const res = await fetch(`${backend()}/api/auth/google`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ credential }) });
+        if (!res.ok) return { ok: false, error: await errText(res) };
+        const j = await res.json(); setToken(j.token); this.user = j.user; document.dispatchEvent(new CustomEvent("ta:auth"));
+        return { ok: true, created: j.created };
+      } catch (e) { return { ok: false, error: e.message }; }
+    },
     async features() {
       try { const r = await fetch(`${backend()}/api/auth/config`); return r.ok ? r.json() : {}; } catch { return {}; }
     },

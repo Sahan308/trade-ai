@@ -69,7 +69,7 @@ def build_limiter(per_minute: int, redis_url: str | None):
     return RedisRateLimiter(aioredis.from_url(redis_url, socket_timeout=0.5, socket_connect_timeout=0.5), per_minute)
 
 
-AUTH_PATHS = ("/api/auth/login", "/api/auth/register", "/api/auth/password", "/api/auth/delete", "/api/auth/forgot", "/api/auth/reset")
+AUTH_PATHS = ("/api/auth/login", "/api/auth/register", "/api/auth/password", "/api/auth/delete", "/api/auth/forgot", "/api/auth/reset", "/api/auth/google")
 
 
 def install_rate_limit(app, limiter, auth_limiter=None) -> None:
