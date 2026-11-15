@@ -100,7 +100,7 @@
     /** Most-traded USDT spot pairs by 24h quote volume (excludes stablecoin and leveraged-token pairs). */
     async topSpot(n = 25) {
       const rows = await get("spot", "/api/v3/ticker/24hr", { type: "MINI" });
-      const skip = /^(USDC|FDUSD|TUSD|BUSD|DAI|USDP|USDE|EUR|AEUR|PAXG|WBTC|WBETH|BFUSD|XUSD|USD1|RLUSD)USDT$|(UP|DOWN|BULL|BEAR)USDT$/;
+      const skip = /^(USDC|FDUSD|TUSD|BUSD|DAI|USDP|USDE|EUR|AEUR|PAXG|XAUT|WBTC|WBETH|BFUSD|XUSD|USD1|RLUSD)USDT$|(UP|DOWN|BULL|BEAR)USDT$/;
       return rows.filter((r) => r.symbol.endsWith("USDT") && !skip.test(r.symbol) && +r.quoteVolume > 0)
         .sort((a, b) => +b.quoteVolume - +a.quoteVolume).slice(0, n)
         .map((r) => ({ symbol: r.symbol.replace(/USDT$/, "/USDT"), last: +r.lastPrice, quoteVolume: +r.quoteVolume,
