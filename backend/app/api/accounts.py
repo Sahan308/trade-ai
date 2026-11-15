@@ -201,7 +201,7 @@ class Reset(BaseModel):
 def reset(body: Reset, session: Session = Depends(get_session)):
     th = _hashlib.sha256(body.token.encode()).hexdigest()
     pr = session.scalar(select(PasswordReset).where(PasswordReset.token_hash == th))
-    exp = pr.expires_at if pr is None or pr.expires_at.tzinfo else pr.expires_at.replace(tzinfo=_tz.utc)
+    exp = None if pr is None else (pr.expires_at if pr.expires_at.tzinfo else pr.expires_at.replace(tzinfo=_tz.utc))
     if pr is None or pr.used_at is not None or exp < _dt.now(_tz.utc):
         raise HTTPException(400, "This reset link is invalid or has expired. Request a new one.")
     user = session.get(User, pr.user_id)
