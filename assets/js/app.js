@@ -893,7 +893,7 @@
             <li>Pro adds the Market scanner, Futures intelligence and Pattern &amp; SMC analysis. New accounts get ${C.pricing.trialDays} days of Pro free.</li>
             <li>Signals are experimental analysis, not advice. TRADE-AI never places trades.</li></ul>
           <p style="margin:12px 0 0;font-size:.84rem"><a href="legal/terms.html">Terms</a> · <a href="legal/privacy.html">Privacy</a> · <a href="legal/risk.html">Risk disclaimer</a></p></section></div>`;
-        $("#signout", el).addEventListener("click", () => { TA.Auth.signOut(); TA.toast("Signed out.", "info"); route(); });
+        $("#signout", el).addEventListener("click", () => { TA.Auth.signOut(); TA.toast("Signed out.", "info"); location.hash = "#/login"; });
         $("#pwForm", el).addEventListener("submit", async (e) => {
           e.preventDefault();
           const r = await TA.Auth.post("/api/auth/password", { current_password: $("#pw0", el).value, new_password: $("#pw1", el).value });
@@ -908,7 +908,7 @@
         });
         return;
       }
-      let mode = "login";
+      let mode = authMode || "login"; authMode = null;
       const feats = await TA.Auth.features();
       if (!el.isConnected) return;
       const draw = () => {
@@ -939,7 +939,8 @@
           btn.disabled = false;
           if (!r.ok) { $("#authErr", el).textContent = r.error; return; }
           TA.toast(mode === "login" ? "Signed in." : `Account created. Your ${C.pricing.trialDays}-day Pro trial has started.`, "success");
-          location.hash = sessionStorage.getItem("ta-after-auth") || "#/signals";
+          const back = sessionStorage.getItem("ta-after-auth");
+          location.hash = back && !/^#\/(login|signup|account|reset)/.test(back) ? back : "#/dashboard";
           sessionStorage.removeItem("ta-after-auth");
         });
       };
@@ -979,9 +980,20 @@
 
   // ---------- Router ----------
   let current;
+  // Sign-in wall: when accounts are available, nothing but the sign-in/register/reset pages opens without a session.
+  let authMode = null;
+  const OPEN_ROUTES = ["account", "login", "signup", "reset"];
   function route() {
     closeLive();
-    const id = (location.hash.match(/^#\/([\w-]+)/) || [])[1] || "dashboard";
+    let id = (location.hash.match(/^#\/([\w-]+)/) || [])[1] || "dashboard";
+    const walled = TA.Auth.available() && !TA.Auth.signedIn();
+    document.body.classList.toggle("auth-wall", walled);
+    if (walled && !OPEN_ROUTES.includes(id)) {
+      try { sessionStorage.setItem("ta-after-auth", location.hash || "#/dashboard"); } catch {}
+      history.replaceState(null, "", location.pathname + location.search + "#/login");
+      id = "login";
+    }
+    if (id === "login" || id === "signup") { authMode = id === "signup" ? "register" : "login"; id = "account"; }
     const r = byId[id] || byId.dashboard;
     current = r.id;
     document.querySelectorAll("[data-route]").forEach((a) => a.dataset.route === r.id ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
@@ -998,7 +1010,7 @@
   // Top banner inviting the user to turn on browser notifications (hidden once on, unsupported, blocked or dismissed).
   async function notifBanner() {
     const nb = $("#notifBanner");
-    if (!nb || !TA.Auth.available() || !TA.Delivery || !TA.Delivery.pushSupported()) return;
+    if (!nb || !TA.Auth.available() || !TA.Auth.signedIn() || !TA.Delivery || !TA.Delivery.pushSupported()) return;
     let dismissed = false; try { dismissed = localStorage.getItem("ta-nb-dismissed") === "1"; } catch {}
     if (dismissed || (await TA.Delivery.current().catch(() => null))) { nb.hidden = true; return; }
     const info = await TA.Delivery.info();
@@ -1021,6 +1033,8 @@
     });
   }
   setTimeout(notifBanner, 1500);
+
+  document.addEventListener("ta:auth", () => { if (!TA.Auth.signedIn()) route(); });
 
   window.addEventListener("hashchange", () => { route(); $("#content").focus({ preventScroll: true }); window.scrollTo(0, 0); });
 
