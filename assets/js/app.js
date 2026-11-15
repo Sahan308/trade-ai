@@ -592,7 +592,7 @@
           pb.disabled = true;
           const r = pushOn ? await TA.Delivery.disablePush() : await TA.Delivery.enablePush(info.push_public_key).catch((e) => ({ ok: false, error: e.message }));
           TA.toast(r.ok ? (pushOn ? "Browser notifications off." : "Browser notifications on.") : r.error, r.ok ? "success" : "error");
-          drawNotif();
+          drawNotif(); const nb = $("#notifBanner"); if (nb && r.ok && !pushOn) nb.hidden = true;
         });
         const mb = $("#mailBtn", nh);
         if (mb) mb.addEventListener("click", async () => {
@@ -970,6 +970,30 @@
     views[r.id](view);
     drawer(false);
   }
+  // Top banner inviting the user to turn on browser notifications (hidden once on, unsupported, blocked or dismissed).
+  async function notifBanner() {
+    const nb = $("#notifBanner");
+    if (!nb || !TA.Auth.available() || !TA.Delivery || !TA.Delivery.pushSupported()) return;
+    let dismissed = false; try { dismissed = localStorage.getItem("ta-nb-dismissed") === "1"; } catch {}
+    if (dismissed || Notification.permission === "denied" || (await TA.Delivery.current().catch(() => null))) { nb.hidden = true; return; }
+    const info = await TA.Delivery.info();
+    if (!info.push_public_key) return;
+    nb.innerHTML = `<span class="nb-ic">${TA.icon("bell")}</span>
+      <span class="nb-text"><b>Get notified about new setups</b><small>A notification when a new LONG or SHORT appears, even with the site closed. Analysis only.</small></span>
+      <button class="btn btn-primary btn-sm" id="nbOn">Turn on notifications</button>
+      <button class="nb-x" id="nbX" aria-label="Dismiss">${TA.icon("x", "icon-sm")}</button>`;
+    nb.hidden = false;
+    $("#nbX").addEventListener("click", () => { try { localStorage.setItem("ta-nb-dismissed", "1"); } catch {} nb.hidden = true; });
+    $("#nbOn").addEventListener("click", async (e) => {
+      e.target.disabled = true;
+      const r = await TA.Delivery.enablePush(info.push_public_key).catch((err) => ({ ok: false, error: err.message }));
+      TA.toast(r.ok ? "Notifications on. You'll hear about new setups." : r.error, r.ok ? "success" : "error");
+      if (r.ok || Notification.permission === "denied") nb.hidden = true; else e.target.disabled = false;
+      if (current === "alerts") route();
+    });
+  }
+  setTimeout(notifBanner, 1500);
+
   window.addEventListener("hashchange", () => { route(); $("#content").focus({ preventScroll: true }); window.scrollTo(0, 0); });
 
   // ---------- Delegated actions ----------

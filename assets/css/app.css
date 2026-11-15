@@ -172,3 +172,17 @@ tbody tr:last-child td { border-bottom: 0; }
 .view, main.content { grid-template-columns: minmax(0, 1fr); }
 .scrim { left: 0; right: 0; width: auto; max-width: 100%; }
 html, body { overflow-x: clip; }
+
+/* "Turn on notifications" banner */
+.notif-banner { margin: 12px 16px 0; padding: 10px 12px 10px 14px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  border-radius: 14px; border: 1px solid rgba(54,214,231,.45);
+  background: linear-gradient(90deg, rgba(54,214,231,.14), rgba(24,184,154,.08));
+  box-shadow: 0 0 18px rgba(54,214,231,.18), inset 0 0 12px rgba(54,214,231,.06); animation: nbIn .35s ease-out; }
+.notif-banner[hidden] { display: none; }
+.notif-banner .nb-ic { color: #36D6E7; filter: drop-shadow(0 0 6px rgba(54,214,231,.8)); display: inline-flex; }
+.notif-banner .nb-text { flex: 1 1 220px; font-size: .9rem; color: var(--tx-1, #E8F0F5); }
+.notif-banner .nb-text small { display: block; color: var(--tx-2, #91A3B0); font-size: .8rem; }
+.notif-banner .nb-x { background: none; border: 0; color: var(--tx-2, #91A3B0); cursor: pointer; padding: 6px; border-radius: 8px; line-height: 0; }
+.notif-banner .nb-x:hover { color: #E8F0F5; background: rgba(255,255,255,.06); }
+@keyframes nbIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .notif-banner { animation: none; } }
