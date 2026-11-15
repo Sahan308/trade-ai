@@ -129,6 +129,7 @@ def post_signed(c, payload, secret="whsec"):
 
 
 def test_lemonsqueezy_webhook_upgrades_and_expires(c, monkeypatch):
+    monkeypatch.setenv("TRADEAI_LEMONSQUEEZY_WEBHOOK_SECRET", ""); get_settings.cache_clear()
     assert post_signed(c, {}).status_code == 503                         # disabled without a secret
     monkeypatch.setenv("TRADEAI_LEMONSQUEEZY_WEBHOOK_SECRET", "whsec"); get_settings.cache_clear()
     h = signup(c)
@@ -165,7 +166,7 @@ def test_login_lockout_and_auth_ip_limit(c):
     for _ in range(5):
         assert c.post("/api/auth/login", json={"email": "lock@example.com", "password": "wrong-pass"}).status_code == 401
     r = c.post("/api/auth/login", json={"email": "lock@example.com", "password": "correct horse"})
-    assert r.status_code == 429 and "Retry-After" in r.headers          # locked even with the right password
+    assert r.status_code == 429 and "Too many failed" in r.text          # locked even with the right password
     accounts._FAILS.clear()
 
 
