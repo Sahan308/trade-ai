@@ -144,6 +144,8 @@ def delete_account(body: Confirm, user: User = Depends(require_user), session: S
         raise HTTPException(409, "Cancel your subscription first (Manage subscription), then delete the account.")
     session.query(SignalUnlock).filter(SignalUnlock.user_id == user.id).delete()
     session.query(PasswordReset).filter(PasswordReset.user_id == user.id).delete()
+    from ..models import PushSubscription
+    session.query(PushSubscription).filter(PushSubscription.user_id == user.id).update({"user_id": None})
     session.add(AuditLog(actor=user.id, action="account.deleted", target=user.id))
     session.delete(user)
     session.commit()

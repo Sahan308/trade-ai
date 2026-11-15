@@ -34,6 +34,39 @@
     } catch {}
   };
 
+  // ---- Alert delivery: browser push + email opt-in ----
+  const b64ToBytes = (b) => { const p = "=".repeat((4 - (b.length % 4)) % 4), r = atob((b + p).replace(/-/g, "+").replace(/_/g, "/")); return Uint8Array.from([...r].map((c) => c.charCodeAt(0))); };
+  TA.Delivery = {
+    pushSupported: () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window,
+    async info() { try { const r = await authed(`${backend()}/api/alerts/delivery`); return r.ok ? r.json() : {}; } catch { return {}; } },
+    async current() {
+      if (!this.pushSupported()) return null;
+      const reg = await navigator.serviceWorker.getRegistration("./");
+      return reg ? reg.pushManager.getSubscription() : null;
+    },
+    async enablePush(publicKey) {
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") return { ok: false, error: perm === "denied" ? "Notifications are blocked for this site. Allow them in your browser's site settings." : "Permission wasn't granted." };
+      const reg = await navigator.serviceWorker.register("sw.js", { scope: "./" });
+      await navigator.serviceWorker.ready;
+      const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(publicKey) });
+      const res = await authed(`${backend()}/api/alerts/push`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sub.toJSON()) });
+      return res.ok ? { ok: true } : { ok: false, error: await errText(res) };
+    },
+    async disablePush() {
+      const sub = await this.current();
+      if (sub) {
+        await authed(`${backend()}/api/alerts/push/remove`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => {});
+        await sub.unsubscribe();
+      }
+      return { ok: true };
+    },
+    async setEmail(enabled) {
+      const res = await authed(`${backend()}/api/alerts/email`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled }) });
+      return res.ok ? { ok: true } : { ok: false, error: await errText(res) };
+    }
+  };
+
   TA.Auth = {
     available: () => Boolean(backend()),
     signedIn: () => Boolean(getToken()),

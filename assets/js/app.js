@@ -569,8 +569,40 @@
     },
 
     async alerts(el) {
-      el.innerHTML = `<section class="card panel"><div class="panel-head"><h2>${TA.icon("bell")}Alerts</h2><span class="muted" style="font-size:.82rem">In-app only · refreshes every 30s</span></div><div id="al"></div></section>`;
+      el.innerHTML = `<section class="card panel" id="notif"></section><section class="card panel"><div class="panel-head"><h2>${TA.icon("bell")}Alerts</h2><span class="muted" style="font-size:.82rem">Refreshes every 30s</span></div><div id="al"></div></section>`;
       const host = $("#al", el);
+      const nh = $("#notif", el);
+      const drawNotif = async () => {
+        if (!TA.Auth.available()) { nh.remove(); return; }
+        const info = await TA.Delivery.info(), sub = await TA.Delivery.current().catch(() => null);
+        if (!nh.isConnected) return;
+        const pushOn = Boolean(sub), canPush = TA.Delivery.pushSupported() && info.push_public_key;
+        const ios = /iPhone|iPad/.test(navigator.userAgent) && !window.navigator.standalone;
+        nh.innerHTML = `<div class="panel-head"><h2>${TA.icon("bell")}Notifications</h2></div>
+          <p class="muted" style="margin:0 0 12px;font-size:.86rem">Get told when a new LONG or SHORT setup appears. Notifications show the pair, direction and score; levels stay in the app. Analysis only, not advice.</p>
+          <div style="display:grid;gap:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+              <div><b>Browser notifications</b><div class="muted" style="font-size:.82rem">${!canPush ? (ios ? "On iPhone/iPad: tap Share → Add to Home Screen, open TRADE-AI from there, then turn this on." : "Not supported in this browser.") : pushOn ? "On for this browser." : "Pops up on this device, even when the site is closed."}</div></div>
+              ${canPush ? `<button class="btn btn-sm ${pushOn ? "" : "btn-primary"}" id="pushBtn">${pushOn ? "Turn off" : "Turn on"}</button>` : ""}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+              <div><b>Email alerts</b><div class="muted" style="font-size:.82rem">${!info.email_available ? "Coming soon." : !TA.Auth.signedIn() ? `<a href="#/account">Sign in</a> to get new signals by email.` : info.email_alerts ? "On: sent to your account email." : "Off."}</div></div>
+              ${info.email_available && TA.Auth.signedIn() ? `<button class="btn btn-sm ${info.email_alerts ? "" : "btn-primary"}" id="mailBtn">${info.email_alerts ? "Turn off" : "Turn on"}</button>` : ""}</div></div>`;
+        const pb = $("#pushBtn", nh);
+        if (pb) pb.addEventListener("click", async () => {
+          pb.disabled = true;
+          const r = pushOn ? await TA.Delivery.disablePush() : await TA.Delivery.enablePush(info.push_public_key).catch((e) => ({ ok: false, error: e.message }));
+          TA.toast(r.ok ? (pushOn ? "Browser notifications off." : "Browser notifications on.") : r.error, r.ok ? "success" : "error");
+          drawNotif();
+        });
+        const mb = $("#mailBtn", nh);
+        if (mb) mb.addEventListener("click", async () => {
+          mb.disabled = true;
+          const r = await TA.Delivery.setEmail(!info.email_alerts);
+          TA.toast(r.ok ? (info.email_alerts ? "Email alerts off." : "Email alerts on.") : r.error, r.ok ? "success" : "error");
+          drawNotif();
+        });
+      };
+      drawNotif();
       const load = async () => {
         const r = await TA.Signals.getAlerts(0);
         if (!host.isConnected) return;

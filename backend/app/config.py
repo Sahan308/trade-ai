@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""
     public_site_url: str = "https://sahan308.github.io/trade-ai/app.html"
+    # Web push (VAPID). Generated on the server; empty = browser push disabled.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = "mailto:alerts@tradeai.invalid"
     # Outgoing email (password reset) via any SMTP provider, e.g. Brevo. Empty host = disabled.
     smtp_host: str = ""
     smtp_port: int = 587
