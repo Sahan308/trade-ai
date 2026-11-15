@@ -13,6 +13,7 @@ from .db import get_engine, get_session
 from .providers.base import MarketType, ProviderError
 from .signals.engine import evaluate
 from .signals.store import save
+from .notify import notify_new_signal
 from .signals.tracker import alert_for_new_signal, track_open
 from .signals.strategy import PROFILES
 
@@ -57,6 +58,7 @@ def scan_once(provider, profile: str = "day") -> list[dict]:
             if created and row.side in ("LONG", "SHORT"):
                 alert_for_new_signal(session, row)
                 session.commit()
+                notify_new_signal(row)
         finally:
             session.close()
         log.info("scan %s %s → %s%s", sym, mkt, res["side"], "" if created else " (already stored)")

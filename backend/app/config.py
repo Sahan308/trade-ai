@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     trial_signals: int = 3
     # Billing (Lemon Squeezy). Empty secret = webhook disabled.
     lemonsqueezy_webhook_secret: str = ""
+    # Telegram channel alerts (optional). Bot token from @BotFather; chat id like -100… or @channelname.
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
+    public_site_url: str = "https://sahan308.github.io/trade-ai/app.html"
     # Comma-separated emails allowed to view usage stats
     admin_emails: Annotated[list[str], NoDecode] = []
 
