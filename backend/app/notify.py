@@ -95,13 +95,14 @@ def send_email_alerts(row: Signal, session=None) -> int:
         return 0
     own = session is None
     session = session or next(get_session())
-    title, body = plain_text(row)
     s = get_settings()
+    from .email_templates import signal_alert
+    subject, html, text = signal_alert(row.side, row.symbol.replace("USDT", "/USDT"), row.market, row.timeframe, row.score,
+                                       f"{s.public_site_url}#/signals", f"{s.public_site_url}#/alerts")
     sent = 0
     try:
         for u in session.scalars(select(User).where(User.email_alerts.is_(True))).all():
-            if mailer.send(u.email, f"TRADE-AI: {title}", f"{body}\n\n{s.public_site_url}#/signals\n\n"
-                           f"Experimental strategy. TRADE-AI never places trades. Turn these emails off in Alerts → Notifications."):
+            if mailer.send(u.email, subject, text, html):
                 sent += 1
     finally:
         if own:

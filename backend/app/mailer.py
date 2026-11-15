@@ -14,13 +14,15 @@ def enabled() -> bool:
     return bool(s.smtp_host and s.mail_from)
 
 
-def send(to: str, subject: str, text: str) -> bool:
+def send(to: str, subject: str, text: str, html: str | None = None) -> bool:
     s = get_settings()
     if not enabled():
         return False
     msg = EmailMessage()
     msg["From"], msg["To"], msg["Subject"] = s.mail_from, to, subject
     msg.set_content(text)
+    if html:
+        msg.add_alternative(html, subtype="html")
     try:
         ctx = ssl.create_default_context()
         if s.smtp_port == 465:

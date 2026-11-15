@@ -48,9 +48,9 @@ def test_email_alert_opt_in(c, monkeypatch):
     assert c.get("/api/alerts/delivery", headers=h).json()["email_alerts"] is True
     from app import mailer
     sent = []
-    monkeypatch.setattr(mailer, "send", lambda to, subj, text: sent.append((to, subj)) or True)
+    monkeypatch.setattr(mailer, "send", lambda to, subj, text, html=None: sent.append((to, subj)) or True)
     s = next(db.get_session())
     assert send_email_alerts(Signal(id="s2", symbol="BTCUSDT", market="spot", timeframe="1H", side="LONG", score=70), session=s) == 1
-    assert sent == [("a@example.com", "TRADE-AI: LONG · BTC/USDT (1H)")]
+    assert sent == [("a@example.com", "TRADE-AI: new LONG setup · BTC/USDT (1H)")]
     s.close()
     assert c.post("/api/alerts/email", json={"enabled": False}).status_code == 401

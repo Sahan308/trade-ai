@@ -186,10 +186,9 @@ def forgot(body: Forgot, session: Session = Depends(get_session)):
                                       expires_at=_dt.now(_tz.utc) + RESET_TTL))
             session.commit()
             link = f"{get_settings().public_site_url}#/reset?token={token}"
-            mailer.send(user.email, "Reset your TRADE-AI password",
-                        f"Someone asked to reset the password for your TRADE-AI account.\n\n"
-                        f"Open this link within 30 minutes to choose a new password:\n{link}\n\n"
-                        f"If it wasn't you, ignore this email: your password stays the same.")
+            from ..email_templates import password_reset
+            subject, html, text = password_reset(link, int(RESET_TTL.total_seconds() // 60))
+            mailer.send(user.email, subject, text, html)
     # Same answer whether or not the account exists, so this can't be used to discover emails.
     return {"ok": True, "message": "If an account exists for that email, a reset link is on its way."}
 

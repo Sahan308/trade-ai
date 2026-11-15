@@ -201,7 +201,7 @@ def test_password_reset_by_email(c, monkeypatch):
     get_settings.cache_clear()
     sent = []
     from app import mailer
-    monkeypatch.setattr(mailer, "send", lambda to, subject, text: sent.append((to, text)) or True)
+    monkeypatch.setattr(mailer, "send", lambda to, subject, text, html=None: sent.append((to, text)) or True)
     signup(c)
     same = c.post("/api/auth/forgot", json={"email": "nobody@example.com"}).json()
     assert c.post("/api/auth/forgot", json={"email": "A@example.com"}).json() == same and len(sent) == 1   # no enumeration
