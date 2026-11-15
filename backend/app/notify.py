@@ -64,7 +64,7 @@ def send_push_all(row: Signal, session=None, webpush=None) -> int:
     own = session is None
     session = session or next(get_session())
     title, body = plain_text(row)
-    data = json.dumps({"title": title, "body": body, "url": f"{s.public_site_url}#/signals", "tag": f"signal-{row.id}"})
+    data = json.dumps({"title": title, "body": body, "url": f"{s.public_site_url}#/signals", "tag": f"signal-{row.id}"}, ensure_ascii=False)
     sent = 0
     try:
         for sub in session.scalars(select(PushSubscription)).all():
