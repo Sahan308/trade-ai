@@ -11,7 +11,8 @@ window.TRADE_AI_CONFIG = {
   pricing: {
     currency: "USD",
     monthlyPrice: 20,
-    trialSignals: 3,
+    trialSignals: 3,   // legacy
+    trialDays: 7,      // Pro trial on sign-up (server: TRADEAI_TRIAL_DAYS)
     trialDurationDays: null,       // e.g. 7 — null renders "to be confirmed"
     renewalTerms: null,            // e.g. "Renews monthly until cancelled"
     checkoutEnabled: false,        // OFF until Lemon Squeezy identity verification + live mode (test mode would let anyone use the test card)

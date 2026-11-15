@@ -37,11 +37,17 @@ class Credentials(BaseModel):
 
 
 def usage(session: Session, user: User) -> dict:
-    used = session.scalar(select(func.count()).select_from(SignalUnlock).where(SignalUnlock.user_id == user.id)) or 0
-    limit = get_settings().trial_signals
-    unlimited = user.plan != "trial"
-    return {"plan": user.plan, "used": used, "limit": None if unlimited else limit,
-            "remaining": None if unlimited else max(0, limit - used)}
+    from datetime import datetime, timezone
+    from ..access import pro_active
+    t = user.trial_ends_at
+    if t is not None and t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    import math
+    left = None
+    if user.plan == "trial" and t is not None:
+        left = max(0, math.ceil((t - datetime.now(timezone.utc)).total_seconds() / 86400))
+    return {"plan": user.plan, "pro": pro_active(user), "trial_ends_at": t.isoformat() if t else None,
+            "trial_days_left": left if user.plan == "trial" else None}
 
 
 def me(session: Session, user: User) -> dict:
@@ -59,7 +65,9 @@ def register(body: Credentials, session: Session = Depends(get_session)):
     email = body.email.strip().lower()
     if not EMAIL.match(email):
         raise HTTPException(422, "Enter a valid email address")
-    user = User(id=str(uuid.uuid4()), email=email, password_hash=hash_password(body.password), plan="trial")
+    from datetime import datetime, timedelta, timezone
+    user = User(id=str(uuid.uuid4()), email=email, password_hash=hash_password(body.password), plan="trial",
+                trial_ends_at=datetime.now(timezone.utc) + timedelta(days=get_settings().trial_days))
     session.add(user)
     try:
         session.flush()
@@ -97,23 +105,13 @@ def get_usage(user: User = Depends(require_user), session: Session = Depends(get
     return usage(session, user)
 
 
-@router.post("/api/signals/{signal_id}/unlock", summary="Reveal a signal's trade levels (uses one trial signal)")
+@router.post("/api/signals/{signal_id}/unlock", summary="Deprecated: signals are free; returns the full signal")
 def unlock(signal_id: str, user: User = Depends(require_user), session: Session = Depends(get_session)):
     row = session.get(Signal, signal_id)
     if row is None:
         raise HTTPException(404, "Signal not found")
     if row.side not in ("LONG", "SHORT"):
         raise HTTPException(400, "NO TRADE results have no levels to unlock")
-    exists = session.scalar(select(SignalUnlock).where(SignalUnlock.user_id == user.id, SignalUnlock.signal_id == signal_id))
-    if exists is None and row.lifecycle in LIVE and user.plan == "trial":
-        u = usage(session, user)
-        if u["remaining"] is not None and u["remaining"] <= 0:
-            raise HTTPException(402, "Your free trial signals are used up. A subscription is needed to unlock more.")
-        session.add(SignalUnlock(user_id=user.id, signal_id=signal_id))
-        try:
-            session.commit()
-        except IntegrityError:  # concurrent double-click
-            session.rollback()
     return {"signal": view(row, None), "usage": usage(session, user)}
 
 

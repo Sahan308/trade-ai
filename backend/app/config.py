@@ -34,7 +34,8 @@ class Settings(BaseSettings):
     # Accounts (Milestone 7). Secret signs session tokens; required in production.
     auth_secret: str = "dev-only-insecure-secret-change-me"
     token_ttl_hours: int = 24 * 14
-    trial_signals: int = 3
+    trial_signals: int = 3  # legacy (signal-unlock trial, replaced by trial_days)
+    trial_days: int = 7
     # Billing (Lemon Squeezy). Empty secret = webhook disabled.
     lemonsqueezy_webhook_secret: str = ""
     # Telegram channel alerts (optional). Bot token from @BotFather; chat id like -100… or @channelname.

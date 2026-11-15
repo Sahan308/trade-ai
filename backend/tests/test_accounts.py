@@ -70,42 +70,29 @@ def test_register_login_me(c):
     assert c.post("/api/auth/login", json={"email": "a@example.com", "password": "wrong pass"}).status_code == 401
     assert c.post("/api/auth/login", json={"email": "a@example.com", "password": "correct horse"}).status_code == 200
     me = c.get("/api/auth/me", headers=h).json()
-    assert me["email"] == "a@example.com" and me["usage"] == {"plan": "trial", "used": 0, "limit": 3, "remaining": 3}
+    assert me["email"] == "a@example.com" and me["usage"]["plan"] == "trial" and me["usage"]["pro"] is True
+    assert me["usage"]["trial_days_left"] == 7
     assert "password_hash" not in me
     assert c.get("/api/auth/me").status_code == 401
 
 
-def test_live_levels_hidden_until_unlocked_and_trial_enforced(c):
-    ids = live_signals(4)
+def test_signals_are_free_for_everyone(c):
+    ids = live_signals(2)
     anon = c.get("/api/signals").json()["signals"]
-    assert all(s["locked"] and "stop" not in s and "entry_low" not in s and "targets" not in s for s in anon)
-    assert all(s["side"] in ("LONG", "SHORT") and "score" in s for s in anon)
-    assert "stop" not in c.get(f"/api/signals/{ids[0]}").json()
-    assert all("Entry" not in a["message"] and a["locked"] for a in c.get("/api/alerts").json()["alerts"])
-    assert c.post(f"/api/signals/{ids[0]}/unlock").status_code == 401
+    assert all(not s["locked"] and s["stop"] is not None and s["targets"] for s in anon)
+    assert all("Entry" in a["message"] and not a["locked"] for a in c.get("/api/alerts").json()["alerts"])
+    assert not c.get(f"/api/signals/{ids[0]}").json()["locked"]
 
+
+def test_seven_day_pro_trial_expires(c):
+    from datetime import datetime, timedelta, timezone
+    from app.models import User
     h = signup(c)
-    r = c.post(f"/api/signals/{ids[0]}/unlock", headers=h).json()
-    assert r["signal"]["stop"] is not None and r["usage"]["remaining"] == 2
-    assert c.post(f"/api/signals/{ids[0]}/unlock", headers=h).json()["usage"]["used"] == 1   # re-unlock is free
-    got = c.get(f"/api/signals/{ids[0]}", headers=h).json()
-    assert not got["locked"] and "stop" in got
-    assert "stop" not in c.get(f"/api/signals/{ids[0]}").json()                            # still hidden for others
-    for sid in ids[1:3]:
-        assert c.post(f"/api/signals/{sid}/unlock", headers=h).status_code == 200
-    r = c.post(f"/api/signals/{ids[3]}/unlock", headers=h)
-    assert r.status_code == 402
-    assert c.get("/api/usage", headers=h).json() == {"plan": "trial", "used": 3, "limit": 3, "remaining": 0}
-    other = signup(c, "b@example.com")                                                       # usage is per account
-    assert c.post(f"/api/signals/{ids[3]}/unlock", headers=other).status_code == 200
-
-
-def test_finished_signals_are_public_and_free(c):
-    [sid] = live_signals(1, lifecycle="stopped")
-    d = c.get(f"/api/signals/{sid}").json()
-    assert not d["locked"] and "stop" in d
-    h = signup(c)
-    assert c.post(f"/api/signals/{sid}/unlock", headers=h).json()["usage"]["used"] == 0
+    assert c.get("/api/usage", headers=h).json()["pro"] is True
+    s = next(db.get_session())
+    u = s.query(User).one(); u.trial_ends_at = datetime.now(timezone.utc) - timedelta(minutes=1); s.commit(); s.close()
+    u2 = c.get("/api/usage", headers=h).json()
+    assert u2["pro"] is False and u2["trial_days_left"] == 0
 
 
 def test_cors_allows_auth_header(c):
@@ -137,13 +124,11 @@ def test_lemonsqueezy_webhook_upgrades_and_expires(c, monkeypatch):
     assert post_signed(c, ls_event("subscription_created", uid, "active"), secret="wrong").status_code == 401
     assert post_signed(c, ls_event("subscription_created", uid, "active")).json()["plan"] == "pro"
     me = c.get("/api/auth/me", headers=h).json()
-    assert me["usage"]["limit"] is None and me["subscription"]["status"] == "active"
-    ids = live_signals(4)
-    assert all(not s["locked"] for s in c.get("/api/signals", headers=h).json()["signals"])   # paid: everything visible
+    assert me["usage"]["pro"] is True and me["usage"]["plan"] == "pro" and me["subscription"]["status"] == "active"
     assert post_signed(c, ls_event("subscription_updated", uid, "expired", updated="2026-11-13T00:00:00Z")).json() == {"ignored": "stale"}
     assert post_signed(c, ls_event("subscription_cancelled", uid, "cancelled", updated="2026-11-15T00:00:00Z")).json()["plan"] == "pro"
     assert post_signed(c, ls_event("subscription_expired", uid, "expired", updated="2026-11-16T00:00:00Z")).json()["plan"] == "trial"
-    assert c.get(f"/api/signals/{ids[0]}", headers=h).json()["locked"]
+    assert c.get("/api/usage", headers=h).json()["plan"] == "trial"
 
 
 def test_change_password_and_delete(c):
@@ -151,8 +136,6 @@ def test_change_password_and_delete(c):
     assert c.post("/api/auth/password", headers=h, json={"current_password": "nope", "new_password": "another pass"}).status_code == 401
     assert c.post("/api/auth/password", headers=h, json={"current_password": "correct horse", "new_password": "another pass"}).status_code == 200
     assert c.post("/api/auth/login", json={"email": "a@example.com", "password": "another pass"}).status_code == 200
-    [sid] = live_signals(1)
-    c.post(f"/api/signals/{sid}/unlock", headers=h)
     assert c.post("/api/auth/delete", headers=h, json={"password": "wrong"}).status_code == 401
     assert c.post("/api/auth/delete", headers=h, json={"password": "another pass"}).status_code == 200
     assert c.get("/api/auth/me", headers=h).status_code == 401

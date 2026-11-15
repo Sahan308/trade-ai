@@ -1,4 +1,6 @@
-"""Who may see a signal's trade levels (Milestone 7 server-side trial).
+"""Access rules: signals are free; Pro (paid or 7-day trial) unlocks the analysis tools.
+
+Historical note (Milestone 7 server-side trial):
 
 Levels of a *live* LONG/SHORT signal (lifecycle active or triggered) are hidden unless the viewer has unlocked
 it (one trial signal each) or has a paid plan. Finished signals are shown in full, so past outcomes stay transparent."""
@@ -23,7 +25,23 @@ def unlocked_ids(session: Session, user: User | None) -> set[str] | None:
 
 
 def is_locked(row: Signal, unlocked: set[str] | None) -> bool:
-    return (row.side in ("LONG", "SHORT") and row.lifecycle in LIVE and unlocked is not None and row.id not in unlocked)
+    """Signals are free since the Nov 2026 repositioning (Pro = analysis tools), so nothing is locked."""
+    return False
+
+
+def pro_active(user: User | None) -> bool:
+    """Pro = an active paid plan, or within the free trial window."""
+    from datetime import datetime, timezone
+    if user is None:
+        return False
+    if user.plan != "trial":
+        return True
+    t = user.trial_ends_at
+    if t is None:
+        return False
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    return t > datetime.now(timezone.utc)
 
 
 def view(row: Signal, unlocked: set[str] | None) -> dict:

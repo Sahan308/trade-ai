@@ -69,7 +69,7 @@ def test_api_lists_details_and_history(env):
         recent = c.get("/api/signals").json()
         assert [x["id"] for x in recent["signals"]] == [sig.id] and "not a win probability" in recent["note"]
         d = c.get(f"/api/signals/{sig.id}").json()
-        assert d["supporting"] and d["config"]["version"] == "1.0.0" and d["locked"] and "invalidation" not in d  # live levels hidden (M7)
+        assert d["supporting"] and d["config"]["version"] == "1.0.0" and not d["locked"] and d["invalidation"]  # signals are free (Pro = analysis tools)
         h = c.get("/api/signals/history").json()
         assert h["total"] == 2 and {x["side"] for x in h["items"]} == {sig.side, "NO TRADE"}
         assert c.get("/api/signals/history?side=NO TRADE").json()["total"] == 1

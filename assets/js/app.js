@@ -357,6 +357,26 @@
   }
 
   // ---------- Views ----------
+  // Pro features open with an active trial or paid plan. Their data comes from public exchange APIs in the browser,
+  // so this is a product gate rather than a security boundary.
+  async function proGate(el, title, blurb) {
+    if (store.demo || !TA.Auth.available()) return true;
+    const u = (await TA.Signals.getUsage()).data || {};
+    if (u.pro) return true;
+    if (!el.isConnected) return false;
+    const signedOut = !!u.signedOut;
+    try { sessionStorage.setItem("ta-after-auth", location.hash); } catch {}
+    el.innerHTML = `<section class="card panel" style="text-align:center;padding:36px 22px">
+      <span class="badge" style="margin:0 auto 12px">TRADE-AI Pro</span>
+      <h2 style="font-size:1.4rem;margin:0 0 8px">${TA.esc(title)}</h2>
+      <p class="muted" style="max-width:520px;margin:0 auto 18px">${TA.esc(blurb)}</p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        ${signedOut ? `<a class="btn btn-primary" href="#/account">Start ${C.pricing.trialDays}-day free trial</a><a class="btn" href="#/account">Sign in</a>`
+          : `<a class="btn btn-primary" href="#/billing">Upgrade to Pro · $${C.pricing.monthlyPrice}/month</a>`}</div>
+      <p class="muted" style="font-size:.82rem;margin:16px 0 0">${signedOut ? "No card needed for the trial." : "Your free trial has ended."} Dashboard, charts, signals, history and risk tools stay free.</p></section>`;
+    return false;
+  }
+
   const views = {
     async dashboard(el) {
       el.innerHTML = `
@@ -364,7 +384,7 @@
           <div class="card stat"><small>Market status</small><strong id="mkStatus">${store.demo ? "Sample" : TA.MarketData.isConfigured() ? "Open 24/7" : "Unknown"}</strong><p class="muted">${store.demo ? "Preview fixture" : TA.MarketData.isConfigured() ? "Crypto trades continuously" : "Needs data feed"}</p></div>
           <div class="card stat"><small>Data connection</small><strong>${store.demo ? `<span class="dot" style="color:var(--accent)"></span>Sample` : TA.MarketData.isConfigured() ? `<span class="dot dot-live" style="color:var(--teal)"></span>Live` : `${TA.icon("wifiOff", "icon-sm")}Offline`}</strong><p class="muted">${TA.esc(TA.MarketData.describeSource(store.demo))}</p></div>
           <div class="card stat"><small>Data freshness</small><strong id="fresh">—</strong><p class="muted">Watchlist · stale after ${C.api.staleAfterSeconds}s</p></div>
-          <div class="card stat"><small>Trial signals</small><strong id="usageTxt"><span class="skeleton" style="width:60px;display:inline-block">&nbsp;</span></strong><div class="usage" id="usageBar" aria-hidden="true"></div></div>
+          <div class="card stat"><small>Your plan</small><strong id="usageTxt"><span class="skeleton" style="width:60px;display:inline-block">&nbsp;</span></strong><p class="muted" id="usageSub"></p></div>
         </div>
         <div class="grid-dash">
           <div class="span-8">${chartPanel()}</div>
@@ -380,11 +400,11 @@
       $("#recent", el).innerHTML = sig.status === "disconnected"
         ? state("off", "No signal feed", "Signals appear here once an approved signal backend is connected.", demoBtn)
         : fromResult(sig, "Signals", (d) => d.map((s) => `<button class="sig-row" data-sig="${s.id}">${TA.dirBadge(s.direction)}<span><b>${TA.esc(s.symbol)}</b><br/><span class="muted" style="font-size:.8rem">${s.timeframe} · ${TA.lifeLabel[s.lifecycle]}</span></span><span class="muted" style="font-size:.78rem">${TA.ago(s.createdAt)}</span></button>`).join("") + (sig.source === "demo" ? `<p class="demo-stamp" style="margin:4px 0 0">${TA.icon("flask", "icon-sm")}Illustrative examples</p>` : ""));
-      const u = use.data;
-      $("#usageTxt", el).innerHTML = u.signedOut ? `<a href="#/account" style="font-size:1rem">Sign in</a> <span class="muted" style="font-size:.85rem">· ${u.limit} free</span>`
-        : u.limit == null ? `Unlimited <span class="muted" style="font-size:.85rem">(${TA.esc(u.plan || "")})</span>`
-        : u.used == null ? `— <span class="muted" style="font-size:.85rem">of ${u.limit}</span>` : `${u.used} <span class="muted" style="font-size:.85rem">of ${u.limit} used${use.source === "demo" ? " (sample)" : ""}</span>`;
-      $("#usageBar", el).innerHTML = Array.from({ length: u.limit || 0 }, (_, i) => `<i class="${u.used != null && i < u.used ? "used" : ""}"></i>`).join("");
+      const u = use.data || {};
+      $("#usageTxt", el).innerHTML = u.signedOut ? `<a href="#/account" style="font-size:1rem">Start free trial</a>`
+        : u.plan && u.plan !== "trial" ? "Pro" : u.pro ? "Pro trial" : "Free";
+      $("#usageSub", el).textContent = u.signedOut ? `${C.pricing.trialDays} days of Pro, no card needed`
+        : u.plan && u.plan !== "trial" ? "All analysis tools" : u.pro ? `${u.trial_days_left} day${u.trial_days_left === 1 ? "" : "s"} left` : "Upgrade for scanner, futures & SMC";
     },
 
     async markets(el) {
@@ -619,6 +639,7 @@
     },
 
     async patterns(el) {
+      if (!(await proGate(el, "Pattern & SMC analysis", "Structure breaks, liquidity, order blocks, fair value gaps, candlestick patterns and chart formations for any watchlist pair."))) return;
       const W = C.watchlist; let si = 0, tf = "1H";
       el.innerHTML = `<section class="card panel"><div class="panel-head" style="flex-wrap:wrap;gap:10px"><h2>${TA.icon("layers")}Pattern &amp; SMC analysis</h2>
           <div style="display:flex;gap:8px;flex-wrap:wrap"><select id="psym" aria-label="Symbol">${W.map((w, i) => `<option value="${i}">${TA.esc(w.symbol)} · ${w.market}</option>`).join("")}</select>
@@ -668,6 +689,7 @@
     },
 
     async futures(el) {
+      if (!(await proGate(el, "Futures intelligence", "Funding rates, open interest, long/short positioning and mark-vs-index premium across the top perpetual contracts."))) return;
       const B = TA.Providers && TA.Providers.binance;
       let sel = "BTCUSDT", board = null, sortKey = "quoteVolume", dir = -1;
       el.innerHTML = `<div id="fdet"></div><section class="card panel"><div class="panel-head"><h2>${TA.icon("chart")}Perpetual futures board</h2><button class="btn btn-sm" id="frefresh">${TA.icon("refresh", "icon-sm")}Refresh</button></div>
@@ -779,6 +801,7 @@
     },
 
     async scanner(el) {
+      if (!(await proGate(el, "Market scanner", "Rank the 25 most-traded pairs by trend, ADX, RSI, MACD, volume spikes and volatility on 1H, 4H or 1D."))) return;
       const B = TA.Providers && TA.Providers.binance;
       const tfs = ["1H", "4H", "1D"];
       let tf = "1H", rows = null, sortKey = "adx", dir = -1, fil = "all", busy = false, at = null;
@@ -848,10 +871,10 @@
       if (!el.isConnected) return;
       if (user) {
         const u = user.usage;
-        el.innerHTML = `<div class="grid-dash"><section class="card panel span-6"><div class="panel-head"><h2>${TA.icon("user")}Your account</h2><span class="badge">${u.plan === "trial" ? "Free trial" : TA.esc(u.plan)}</span></div>
+        el.innerHTML = `<div class="grid-dash"><section class="card panel span-6"><div class="panel-head"><h2>${TA.icon("user")}Your account</h2><span class="badge">${u.plan !== "trial" ? "Pro" : u.pro ? "Pro trial" : "Free"}</span></div>
           <dl class="detail-grid" style="grid-template-columns:1fr 1fr;margin:0 0 16px">
             <div class="level" style="grid-column:1/-1"><dt>Email</dt><dd style="font-family:var(--font-sans)">${TA.esc(user.email)}</dd></div>
-            <div class="level"><dt>Trial signals used</dt><dd>${u.limit == null ? "Unlimited" : `${u.used} of ${u.limit}`}</dd></div>
+            <div class="level"><dt>Plan</dt><dd style="font-family:var(--font-sans)">${u.plan !== "trial" ? "Pro (paid)" : u.pro ? `Pro trial · ${u.trial_days_left} day${u.trial_days_left === 1 ? "" : "s"} left` : "Free"}</dd></div>
             <div class="level"><dt>Member since</dt><dd style="font-family:var(--font-sans)">${TA.fmtTime(user.created_at)}</dd></div></dl>
           <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="signout">${TA.icon("logout", "icon-sm")}Sign out</button>${user.is_admin ? `<a class="btn" href="#/stats">${TA.icon("chart", "icon-sm")}Usage stats</a>` : ""}</div></section>
           <section class="card panel span-6"><h2 style="font-size:1rem">${TA.icon("shield")}Change password</h2>
@@ -860,14 +883,14 @@
               <div class="field"><label for="pw1">New password</label><input id="pw1" type="password" minlength="8" autocomplete="new-password" /><span class="hint">At least 8 characters.</span></div>
               <span class="err" id="pwErr" role="alert"></span><button class="btn btn-sm" type="submit">Update password</button></form></section>
           <section class="card panel span-6"><h2 style="font-size:1rem">${TA.icon("x")}Delete account</h2>
-            <p class="muted" style="font-size:.86rem;margin:0 0 10px">Removes your account and unlock history. This can't be undone.</p>
+            <p class="muted" style="font-size:.86rem;margin:0 0 10px">Removes your account and its settings. This can't be undone.</p>
             <form class="auth-form" id="delForm" novalidate>
               <div class="field"><label for="pwd">Confirm with your password</label><input id="pwd" type="password" autocomplete="current-password" /></div>
               <span class="err" id="delErr" role="alert"></span><button class="btn btn-sm" type="submit">Delete my account</button></form></section>
-          <section class="card panel span-6"><h2 style="font-size:1rem">${TA.icon("info")}How the trial works</h2>
+          <section class="card panel span-6"><h2 style="font-size:1rem">${TA.icon("info")}Free vs Pro</h2>
           <ul style="margin:0;padding-left:18px;font-size:.88rem;color:var(--tx-2);display:grid;gap:4px">
-            <li>While a signal is live, its entry, stop and targets are hidden. Unlocking one uses one of your ${C.pricing.trialSignals} free trial signals.</li>
-            <li>Opening a signal you already unlocked again is free. Finished signals are shown in full to everyone.</li>
+            <li>Free for everyone: dashboard, live charts, signals with full levels, signal history, risk tools and alerts.</li>
+            <li>Pro adds the Market scanner, Futures intelligence and Pattern &amp; SMC analysis. New accounts get ${C.pricing.trialDays} days of Pro free.</li>
             <li>Signals are experimental analysis, not advice. TRADE-AI never places trades.</li></ul>
           <p style="margin:12px 0 0;font-size:.84rem"><a href="legal/terms.html">Terms</a> · <a href="legal/privacy.html">Privacy</a> · <a href="legal/risk.html">Risk disclaimer</a></p></section></div>`;
         $("#signout", el).addEventListener("click", () => { TA.Auth.signOut(); TA.toast("Signed out.", "info"); route(); });
@@ -890,7 +913,7 @@
       if (!el.isConnected) return;
       const draw = () => {
         el.innerHTML = `<section class="card panel" style="max-width:520px"><div class="panel-head"><h2>${TA.icon("user")}${mode === "login" ? "Sign in" : "Create your free account"}</h2></div>
-          <p class="muted" style="margin:0 0 14px;font-size:.88rem">${mode === "login" ? "Sign in to unlock signals." : `Start the free trial: unlock ${C.pricing.trialSignals} live signals. No card needed.`}</p>
+          <p class="muted" style="margin:0 0 14px;font-size:.88rem">${mode === "login" ? "Sign in to your TRADE-AI account." : `Free account with ${C.pricing.trialDays} days of Pro (scanner, futures, SMC). No card needed.`}</p>
           <form class="auth-form" id="authForm" novalidate>
             <div class="field"><label for="em">Email</label><input id="em" type="email" autocomplete="email" required /></div>
             <div class="field"><label for="pw">Password</label><input id="pw" type="password" minlength="8" autocomplete="${mode === "login" ? "current-password" : "new-password"}" required /><span class="hint">At least 8 characters.</span></div>
@@ -915,7 +938,7 @@
           const r = await TA.Auth.submit(mode, $("#em", el).value.trim(), $("#pw", el).value);
           btn.disabled = false;
           if (!r.ok) { $("#authErr", el).textContent = r.error; return; }
-          TA.toast(mode === "login" ? "Signed in." : "Account created. Your free trial has started.", "success");
+          TA.toast(mode === "login" ? "Signed in." : `Account created. Your ${C.pricing.trialDays}-day Pro trial has started.`, "success");
           location.hash = sessionStorage.getItem("ta-after-auth") || "#/signals";
           sessionStorage.removeItem("ta-after-auth");
         });
@@ -937,11 +960,11 @@
       el.innerHTML = `<div class="grid-dash"><section class="card panel span-6"><div class="panel-head"><h2>${TA.icon("card")}Plan</h2><span class="badge">${paid ? "Pro" : "Trial"}</span></div>
         <p style="font-size:1.6rem;font-family:var(--font-display);color:var(--tx-1);margin:0">$${P.monthlyPrice} <span class="muted" style="font-size:.9rem">USD / month${paid ? "" : " after trial"}</span></p>
         <dl class="detail-grid" style="grid-template-columns:1fr 1fr;margin:16px 0">
-          <div class="level"><dt>Trial signals</dt><dd>${user && !paid ? `${user.usage.used} of ${user.usage.limit} used` : P.trialSignals}</dd></div>
-          <div class="level"><dt>Pro</dt><dd style="font-family:var(--font-sans)">Unlock every signal</dd></div>
+          <div class="level"><dt>Free trial</dt><dd style="font-family:var(--font-sans)">${user && !paid ? (user.usage.pro ? `${user.usage.trial_days_left} day${user.usage.trial_days_left === 1 ? "" : "s"} left` : "Ended") : `${P.trialDays} days of Pro`}</dd></div>
+          <div class="level"><dt>Pro includes</dt><dd style="font-family:var(--font-sans)">Scanner, futures data, SMC analysis</dd></div>
           ${subLine}</dl>${action}</section>
         <section class="card panel span-6">${link || paid ? `<h2 style="font-size:1rem">${TA.icon("shield")}Payments</h2><p class="muted" style="font-size:.88rem;margin:0">Checkout and card details are handled by Lemon Squeezy, our payment provider. TRADE-AI never sees or stores card numbers. Your plan updates here a few seconds after payment. Cancel anytime from "Manage subscription".</p>`
-          : state("off", "Checkout isn't open yet", "Payments will be handled by Lemon Squeezy. Until checkout is switched on, the free trial is available.")}</section></div>`;
+          : state("off", "Checkout isn't open yet", "Payments will be handled by Lemon Squeezy. Until checkout opens, every new account gets a free Pro trial.")}</section></div>`;
       const u = $("#upg", el); if (u) u.addEventListener("click", () => TA.toast("Checkout isn't available yet.", "info"));
       if (user && !paid && link) every(15000, async () => { const m = await TA.Auth.me(); if (m && m.usage.plan !== "trial") { TA.toast("Payment received. Pro is active.", "success"); route(); } });
     }
@@ -1023,7 +1046,7 @@
         if (!r.ok) { TA.toast(r.status === 402 ? "Your free trial signals are used up. Subscriptions aren't available yet." : `Couldn't unlock: ${r.error}`, "error"); return; }
         const i = lastSignals.findIndex((x) => x.id === id);
         if (i >= 0) lastSignals[i] = r.signal;
-        TA.toast(r.usage.limit == null ? "Unlocked." : `Unlocked. ${r.usage.remaining} trial signal${r.usage.remaining === 1 ? "" : "s"} left.`, "success");
+        TA.toast("Unlocked.", "success");
         if (document.querySelector(".modal-body .detail")) TA.modal.open(TA.signalDetail(r.signal));
         route();
       });

@@ -123,6 +123,7 @@ class User(Base):
     subscription_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     customer_portal_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     email_alerts: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 

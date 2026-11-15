@@ -24,8 +24,8 @@
   <meta name="twitter:image" content="https://sahan308.github.io/trade-ai/assets/img/og.png" />
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"TRADE-AI","url":"https://sahan308.github.io/trade-ai/","applicationCategory":"FinanceApplication","operatingSystem":"Web","description":"Live crypto charts, 21 indicators, Smart Money Concepts, a market scanner, futures data and position sizing. Analysis only, never automated trading.","offers":{"@type":"Offer","price":"20","priceCurrency":"USD"}}</script>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2336D6E7' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 17l5-5 4 3 7-8'/%3E%3Cpath d='M15 7h5v5'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="assets/css/base.css?v=46" />
-  <link rel="stylesheet" href="assets/css/landing.css?v=46" />
+  <link rel="stylesheet" href="assets/css/base.css?v=47" />
+  <link rel="stylesheet" href="assets/css/landing.css?v=47" />
 </head>
 <body class="landing">
   <a class="skip-link" href="#main">Skip to content</a>
@@ -155,25 +155,26 @@
         </div>
         <div class="pricing-grid" data-stagger>
           <div class="card card-hover plan reveal">
-            <span class="badge" style="align-self:flex-start">Trial</span>
+            <span class="badge" style="align-self:flex-start">Free</span>
             <div class="plan-price">$0</div>
             <ul>
-              <li><span data-icon="check" data-icon-class="icon-sm"></span>Live charts, indicators and SMC</li>
+              <li><span data-icon="check" data-icon-class="icon-sm"></span>Live charts with 21 indicators</li>
+              <li><span data-icon="check" data-icon-class="icon-sm"></span>Experimental signals with full levels</li>
+              <li><span data-icon="check" data-icon-class="icon-sm"></span>Signal history and published backtests</li>
               <li><span data-icon="check" data-icon-class="icon-sm"></span>Risk calculator with exchange specs</li>
-              <li><span data-icon="check" data-icon-class="icon-sm"></span><span><b data-cfg="trialSignals">3</b> free experimental signals</span></li>
-              <li><span data-icon="check" data-icon-class="icon-sm"></span>Trial length: <span data-cfg="trialDuration">to be confirmed</span></li>
+              <li><span data-icon="check" data-icon-class="icon-sm"></span>Browser and email alerts</li>
             </ul>
-            <a class="btn" href="app.html">Start free trial</a>
+            <a class="btn" href="app.html#/account">Create free account</a>
           </div>
           <div class="card card-hover plan featured reveal">
             <span class="badge badge-demo" style="align-self:flex-start">Monthly</span>
             <div class="plan-price">$<span data-cfg="price">20</span> <small>USD / month</small></div>
             <ul>
-              <li><span data-icon="check" data-icon-class="icon-sm"></span>Everything in the trial</li>
-              <li><span data-icon="check" data-icon-class="icon-sm"></span>Alerts and lifecycle tracking</li>
-              <li><span data-icon="check" data-icon-class="icon-sm"></span>Backtest reports</li>
-              <li><span data-icon="check" data-icon-class="icon-sm"></span>Experimental signals (research stage, not advice)</li>
-              <li><span data-icon="check" data-icon-class="icon-sm"></span>Renewal: <span data-cfg="renewal">to be confirmed</span></li>
+              <li><span data-icon="check" data-icon-class="icon-sm"></span>Everything in Free</li>
+              <li><span data-icon="check" data-icon-class="icon-sm"></span>Market scanner: top 25 pairs ranked</li>
+              <li><span data-icon="check" data-icon-class="icon-sm"></span>Futures intelligence: funding, OI, positioning</li>
+              <li><span data-icon="check" data-icon-class="icon-sm"></span>Pattern &amp; SMC analysis</li>
+              <li><span data-icon="check" data-icon-class="icon-sm"></span><b>7-day free trial</b>, then monthly · cancel anytime</li>
             </ul>
             <button class="btn btn-primary" id="subscribeBtn" type="button">Subscribe</button>
           </div>
@@ -191,7 +192,7 @@
           <div class="faq-item reveal"><button class="faq-q" aria-expanded="false">What does an experimental signal include?<span data-icon="plus"></span></button><div class="faq-a" role="region"><div><p>Direction (LONG, SHORT or NO TRADE), symbol, market, strategy, timeframe, timestamp, data source and freshness, entry zone, stop-loss, targets, an invalidation condition, a heuristic setup score, and supporting and conflicting evidence.</p></div></div></div>
           <div class="faq-item reveal"><button class="faq-q" aria-expanded="false">Does TRADE-AI place trades for me?<span data-icon="plus"></span></button><div class="faq-a" role="region"><div><p>No. TRADE-AI is analysis and decision support only. It never connects to your exchange account, never asks for trading permissions and never places orders.</p></div></div></div>
           <div class="faq-item reveal"><button class="faq-q" aria-expanded="false">How is accuracy evaluated?<span data-icon="plus"></span></button><div class="faq-a" role="region"><div><p>Strategies are backtested with fees and slippage, out-of-sample periods and walk-forward tests, under rules we commit before seeing results. Live signals are tracked through their full lifecycle. So far our signal strategy has <b>not</b> shown a positive edge after costs, so we label it experimental and publish the results. We never quote an accuracy rate the data doesn't support, and the setup score is never a win probability.</p></div></div></div>
-          <div class="faq-item reveal"><button class="faq-q" aria-expanded="false">How do pricing and cancellation work?<span data-icon="plus"></span></button><div class="faq-a" role="region"><div><p>You get three free signals during the trial. After that the plan is $20 USD per month. The exact trial length, renewal and cancellation terms are still being finalised and will be shown clearly before you're asked to pay.</p></div></div></div>
+          <div class="faq-item reveal"><button class="faq-q" aria-expanded="false">How do pricing and cancellation work?<span data-icon="plus"></span></button><div class="faq-a" role="region"><div><p>The core app is free: charts, indicators, experimental signals with full levels, history, risk tools and alerts. Pro adds the market scanner, futures intelligence and pattern &amp; SMC analysis for $20 USD per month. Every new account gets 7 days of Pro free, no card needed. Pro renews monthly until you cancel; cancelling keeps Pro until the end of the period you paid for. See the <a href="legal/terms.html">Terms</a>.</p></div></div></div>
         </div>
       </div>
     </section>
@@ -217,12 +218,12 @@
     </div>
   </footer>
 
-  <script src="assets/js/config.js?v=46"></script>
-  <script src="assets/js/core.js?v=46"></script>
-  <script src="assets/js/fixtures/demo.js?v=46"></script>
-  <script src="assets/js/services/signals.js?v=46"></script>
-  <script src="assets/js/components.js?v=46"></script>
-  <script src="assets/js/hero-chart.js?v=46"></script>
-  <script src="assets/js/landing.js?v=46"></script>
+  <script src="assets/js/config.js?v=47"></script>
+  <script src="assets/js/core.js?v=47"></script>
+  <script src="assets/js/fixtures/demo.js?v=47"></script>
+  <script src="assets/js/services/signals.js?v=47"></script>
+  <script src="assets/js/components.js?v=47"></script>
+  <script src="assets/js/hero-chart.js?v=47"></script>
+  <script src="assets/js/landing.js?v=47"></script>
 </body>
 </html>

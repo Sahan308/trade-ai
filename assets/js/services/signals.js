@@ -204,24 +204,15 @@
     },
 
     async getUsage({ demo } = {}) {
-      const limit = window.TRADE_AI_CONFIG.pricing.trialSignals;
-      if (demo) return { status: "ok", source: "demo", data: { used: TA.DEMO.trialUsed, limit } };
-      if (backend()) {
-        if (!getToken()) return { status: "ok", source: "live", data: { used: null, limit, signedOut: true } };
-        try {
-          const res = await authed(`${backend()}/api/usage`);
-          if (res.status === 401) { TA.Auth.signOut(); return { status: "ok", source: "live", data: { used: null, limit, signedOut: true } }; }
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const u = await res.json();
-          return { status: "ok", source: "live", data: { used: u.used, limit: u.limit, plan: u.plan } };
-        } catch (e) { return { status: "error", source: "live", data: { used: null, limit }, error: e.message }; }
-      }
-      if (!this.isConfigured()) return { status: "disconnected", source: "live", data: { used: null, limit } };
+      if (demo) return { status: "ok", source: "demo", data: { pro: false, plan: "trial", sample: true } };
+      if (!backend()) return { status: "disconnected", data: { pro: false } };
+      if (!getToken()) return { status: "ok", source: "live", data: { signedOut: true, pro: false } };
       try {
-        const res = await fetch(`${cfg().signalsBaseUrl}/usage`);
+        const res = await authed(`${backend()}/api/usage`);
+        if (res.status === 401) { TA.Auth.signOut(); return { status: "ok", source: "live", data: { signedOut: true, pro: false } }; }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return { status: "ok", source: "live", data: await res.json() };
-      } catch (e) { return { status: "error", source: "live", data: { used: null, limit }, error: e.message }; }
+      } catch (e) { return { status: "error", source: "live", data: { pro: false }, error: e.message }; }
     }
   };
 })();
