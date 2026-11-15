@@ -169,3 +169,4 @@ tbody tr:last-child td { border-bottom: 0; }
   table { font-size: .82rem; }
   th, td { padding-left: 8px; padding-right: 8px; white-space: nowrap; }
 }
+.view, main.content { grid-template-columns: minmax(0, 1fr); }
