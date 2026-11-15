@@ -49,7 +49,7 @@ window.TRADE_AI_CONFIG = {
   // Shown wherever signals appear. Keep in sync with research/RESULTS.md.
   strategyStatus: {
     experimental: true,
-    note: "Signals are experimental. Strategy smc_trend_pullback lost money after fees in backtests on 8 coins, and across three pre-registered research rounds (21 variants, including breakout, trend and mean-reversion strategies) none passed out-of-sample testing. Signals are shown for research and transparency, not as recommendations.",
+    note: "Signals are experimental. Strategy smc_trend_pullback lost money after fees in backtests on 8 coins, and across four pre-registered research rounds (25 variants, including breakout, trend, momentum and mean-reversion strategies) none passed out-of-sample testing (round 4 included a published portfolio trend-following method). Signals are shown for research and transparency, not as recommendations.",
     url: "https://github.com/Sahan308/trade-ai/blob/main/research/RESULTS.md"
   },
 

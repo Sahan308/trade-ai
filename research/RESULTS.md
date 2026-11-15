@@ -94,3 +94,39 @@ Equal-weight buy-and-hold over the design window: +116% (1D) / +107% (4H). This 
 Equal-weight buy-and-hold over the holdout year: **−42%**.
 
 **Conclusion.** The 20-day breakout's design-period edge did not survive the out-of-sample year. In a falling market it lost far less than holding, but it still lost money, so it fails the pre-registered criteria and won't be released as a signal strategy. The holdout year has now been used. Any future round needs fresh, unseen data, for example evaluated forward in time. Across three rounds and 21 variants, no strategy has passed.
+
+---
+
+## Round 4: evidence-based portfolio trend-following (pre-registered in `PROTOCOL_R4.md`, commit 24f4fdb)
+
+**Research basis:**
+- Time-series momentum has strong evidence in crypto, while cross-sectional momentum is weak after costs (Han, Kang & Ryu).
+- Zarattini, Pagani & Barbon (2025, SFI RP 25-80) proposed a long-only ensemble of Donchian models across lookbacks of 5–360 days with 25% volatility targeting.
+
+**Setup:** daily candles for 25 Binance coins from 2018, a point-in-time top-20 liquidity universe, 0.15% costs, next-open execution, no leverage. Delisted coins (LUNA, FTT…) are absent, so **survivorship bias makes every number below optimistic**.
+
+### Design (2020-01-01 → 2021-12-31)
+| id | total return | CAGR | Sharpe | max drawdown | eligible |
+|---|---|---|---|---|---|
+| E1 ensemble + vol target | +961% | 226% | 2.03 | −51% | no (drawdown) |
+| E2 ensemble, no vol target | +1061% | 241% | 2.03 | −60% | no (drawdown) |
+| **E3 ensemble + BTC regime filter** | +731% | 188% | 2.03 | **−35%** | **yes (chosen)** |
+| E4 90-day momentum | +298% | 100% | 1.30 | −62% | no |
+| *BTC buy-and-hold* | +563% | 158% | 1.62 | −54% | |
+| *Equal-weight top-20 hold* | +1429% | 292% | 1.85 | −68% | |
+
+Design results were committed (750d622) before the holdout ran.
+
+### Holdout (2022-01-01 → 2023-11-14), unseen, run once
+| | total return | Sharpe | max drawdown |
+|---|---|---|---|
+| **E3** | **−11.5%** | −0.09 | **−34%** |
+| BTC buy-and-hold | −24.8% | 0.00 | −67% |
+| Equal-weight top-20 hold | −55.5% | −0.27 | −72% |
+
+**Result: FAIL.** The pass rules required CAGR > 0 and Sharpe ≥ 0.5. E3 met the drawdown rules, with about half the benchmarks' drawdown, and lost far less than holding. But it still lost money, so it is not released as a signal strategy.
+
+### Already-seen context (2023-11-15 → 2026-11-14; not evidence)
+E3 returned +32% (Sharpe 0.43, max drawdown −52%), against BTC hold at +89% (Sharpe 0.69) and equal-weight hold at +22% (Sharpe 0.43).
+
+**Conclusion.** The best-evidenced approach we could find **reduced losses and drawdowns** substantially versus holding coins. It did **not** produce reliable profits on unseen data after costs. This is consistent with the literature: crypto trend-following is mainly a **risk-management tool**, not a reliable profit engine. Across four pre-registered rounds and 25 variants, no strategy has passed.

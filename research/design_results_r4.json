@@ -66,5 +66,72 @@
     }
   },
   "chosen": "E3",
-  "generated_at": "2026-11-15T10:33:35.915983+00:00"
+  "generated_at": "2026-11-15T10:33:35.915983+00:00",
+  "holdout": {
+    "period": [
+      "2022-01-01T00:00:00+00:00",
+      "2023-11-15T00:00:00+00:00"
+    ],
+    "candidate": "E3",
+    "result": {
+      "total_return": -0.115,
+      "cagr": -0.0633,
+      "sharpe": -0.093,
+      "max_drawdown": -0.3404,
+      "days": 683,
+      "turnover_per_year": 25.16,
+      "avg_exposure": 0.37,
+      "pass": false
+    },
+    "benchmarks": {
+      "btc_buy_hold": {
+        "total_return": -0.2482,
+        "cagr": -0.1418,
+        "sharpe": 0.003,
+        "max_drawdown": -0.6673,
+        "days": 682
+      },
+      "equal_weight_top20": {
+        "total_return": -0.5552,
+        "cagr": -0.3522,
+        "sharpe": -0.274,
+        "max_drawdown": -0.7203,
+        "days": 682
+      }
+    },
+    "note": "unseen; run once"
+  },
+  "context": {
+    "period": [
+      "2023-11-15T00:00:00+00:00",
+      "2026-11-14T00:00:00+00:00"
+    ],
+    "candidate": "E3",
+    "result": {
+      "total_return": 0.3189,
+      "cagr": 0.0968,
+      "sharpe": 0.432,
+      "max_drawdown": -0.5213,
+      "days": 1095,
+      "turnover_per_year": 26.13,
+      "avg_exposure": 0.486
+    },
+    "benchmarks": {
+      "btc_buy_hold": {
+        "total_return": 0.889,
+        "cagr": 0.2367,
+        "sharpe": 0.687,
+        "max_drawdown": -0.5297,
+        "days": 1094
+      },
+      "equal_weight_top20": {
+        "total_return": 0.2205,
+        "cagr": 0.0688,
+        "sharpe": 0.426,
+        "max_drawdown": -0.6784,
+        "days": 1094
+      }
+    },
+    "note": "already-seen data (rounds 1-3); context only, not evidence"
+  }
 }
