@@ -446,5 +446,78 @@
     }
   },
   "chosen": "T1",
-  "generated_at": "2026-11-15T10:14:27.856966+00:00"
+  "generated_at": "2026-11-15T10:14:27.856966+00:00",
+  "holdout": {
+    "period": [
+      "2025-11-15T00:00:00+00:00",
+      "2026-11-14T00:00:00+00:00"
+    ],
+    "trades": 43,
+    "win_rate": 0.2326,
+    "mean_ret": -0.01988,
+    "profit_factor": 0.639,
+    "gross_profit": 1.51137,
+    "per_symbol": {
+      "BTCUSDT": {
+        "trades": 5,
+        "win_rate": 0.4,
+        "mean_ret": 0.0085,
+        "profit_factor": 1.259,
+        "gross_profit": 0.20647
+      },
+      "ETHUSDT": {
+        "trades": 7,
+        "win_rate": 0.1429,
+        "mean_ret": -0.05545,
+        "profit_factor": 0.137,
+        "gross_profit": 0.06137
+      },
+      "SOLUSDT": {
+        "trades": 6,
+        "win_rate": 0.3333,
+        "mean_ret": -0.01322,
+        "profit_factor": 0.668,
+        "gross_profit": 0.15983
+      },
+      "BNBUSDT": {
+        "trades": 4,
+        "win_rate": 0.25,
+        "mean_ret": 0.03827,
+        "profit_factor": 2.768,
+        "gross_profit": 0.23969
+      },
+      "XRPUSDT": {
+        "trades": 6,
+        "win_rate": 0.1667,
+        "mean_ret": -0.03315,
+        "profit_factor": 0.441,
+        "gross_profit": 0.15694
+      },
+      "ADAUSDT": {
+        "trades": 6,
+        "win_rate": 0.0,
+        "mean_ret": -0.08796,
+        "profit_factor": 0.0,
+        "gross_profit": 0
+      },
+      "LINKUSDT": {
+        "trades": 5,
+        "win_rate": 0.4,
+        "mean_ret": -0.00303,
+        "profit_factor": 0.953,
+        "gross_profit": 0.3091
+      },
+      "AVAXUSDT": {
+        "trades": 4,
+        "win_rate": 0.25,
+        "mean_ret": 0.03969,
+        "profit_factor": 1.724,
+        "gross_profit": 0.37797
+      }
+    },
+    "buy_and_hold_equal_weight": -0.4199,
+    "max_symbol_share_of_gross_profit": 0.25,
+    "pass": false,
+    "candidate": "T1"
+  }
 }

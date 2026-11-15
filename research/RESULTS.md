@@ -67,3 +67,30 @@ All candidates could trade (the feasibility check passed). Every candidate's poo
 - Stop iterating on this strategy family against the same design period. More variants would mostly fit noise (data snooping).
 - Keep v1.0.0 flagged as experimental in the app with these findings. Don't sell it as a signal service.
 - The holdout year remains untouched, available for a genuinely new idea with its own pre-registered protocol.
+
+---
+
+## Round 3: different strategy families (pre-registered in `PROTOCOL_R3.md`, commit 8437eec)
+
+Six long-only spot candidates on the same 8 symbols, with costs of 0.15% per side and next-open fills: Donchian breakouts T1 (20/10) and T2 (55/20), a trend filter T3 (close vs SMA 100), an MA crossover T4 (50/200), RSI(2) reversion M1, and Bollinger reversion on 4H M2.
+
+### Design period (2023-11-15 → 2025-11-14)
+| id | trades | win rate | mean / trade | profit factor | half-years positive | eligible |
+|---|---|---|---|---|---|---|
+| **T1** | 99 | 36% | **+5.9%** | 2.04 | 3 of 4 | **yes (chosen)** |
+| T2 | 45 | 36% | +7.3% | 2.27 | 4 of 4 | no (under 60 trades) |
+| T3 | 138 | 17% | +3.1% | 1.84 | 3 of 4 | yes |
+| T4 | 16 | 31% | +4.4% | 1.22 | 1 of 3 | no |
+| M1 | 107 | 59% | +0.2% | 1.11 | 2 of 3 | no |
+| M2 | 283 | 50% | −0.6% | 0.74 | 0 of 4 | no |
+
+Equal-weight buy-and-hold over the design window: +116% (1D) / +107% (4H). This was a strong bull market. Design results were committed (d427c5b) before the holdout was run.
+
+### Holdout (2025-11-15 → 2026-11-14), run once, for T1 only
+| trades | win rate | mean / trade | profit factor | max symbol share of gross profit | result |
+|---|---|---|---|---|---|
+| 43 | 23% | **−2.0%** | **0.64** | 25% | **FAIL** |
+
+Equal-weight buy-and-hold over the holdout year: **−42%**.
+
+**Conclusion.** The 20-day breakout's design-period edge did not survive the out-of-sample year. In a falling market it lost far less than holding, but it still lost money, so it fails the pre-registered criteria and won't be released as a signal strategy. The holdout year has now been used. Any future round needs fresh, unseen data, for example evaluated forward in time. Across three rounds and 21 variants, no strategy has passed.
