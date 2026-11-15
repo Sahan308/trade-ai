@@ -156,3 +156,19 @@ def test_change_password_and_delete(c):
     assert c.post("/api/auth/delete", headers=h, json={"password": "another pass"}).status_code == 200
     assert c.get("/api/auth/me", headers=h).status_code == 401
     assert c.post("/api/auth/login", json={"email": "a@example.com", "password": "another pass"}).status_code == 401
+
+
+def test_login_lockout_and_auth_ip_limit(c):
+    from app.api import accounts
+    accounts._FAILS.clear()
+    signup(c, "lock@example.com")
+    for _ in range(5):
+        assert c.post("/api/auth/login", json={"email": "lock@example.com", "password": "wrong-pass"}).status_code == 401
+    r = c.post("/api/auth/login", json={"email": "lock@example.com", "password": "correct horse"})
+    assert r.status_code == 429 and "Retry-After" in r.headers          # locked even with the right password
+    accounts._FAILS.clear()
+
+
+def test_security_headers(c):
+    r = c.get("/health")
+    assert r.headers["x-content-type-options"] == "nosniff" and r.headers["x-frame-options"] == "DENY"

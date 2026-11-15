@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     markets: Annotated[list[str], NoDecode] = ["BTCUSDT:spot", "ETHUSDT:spot", "SOLUSDT:futures", "BNBUSDT:spot", "XRPUSDT:futures"]
     # Inbound API rate limit per client IP
     rate_limit_per_minute: int = 120
+    # Stricter limit for sign-in / sign-up / password endpoints (per client IP)
+    auth_rate_limit_per_minute: int = 10
     # Shared limiter store for multi-process / multi-server deployments, e.g. redis://localhost:6379/0
     redis_url: str | None = None
     # Concurrent WebSocket connections per client IP (per process)

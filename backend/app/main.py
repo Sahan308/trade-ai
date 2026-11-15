@@ -22,7 +22,7 @@ from .api.streams import router as streams_router
 from .providers.binance import BinanceProvider
 from .providers.fallback import FallbackProvider
 from .providers.hyperliquid import HyperliquidProvider
-from .ratelimit import build_limiter, install_rate_limit
+from .ratelimit import MemoryRateLimiter, build_limiter, install_rate_limit
 from .streams import StreamHub
 
 
@@ -68,7 +68,7 @@ def create_app(provider=None, hub: StreamHub | None = None, limiter=None) -> Fas
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
 
-    install_rate_limit(app, limiter or build_limiter(settings.rate_limit_per_minute, settings.redis_url))
+    install_rate_limit(app, limiter or build_limiter(settings.rate_limit_per_minute, settings.redis_url), MemoryRateLimiter(settings.auth_rate_limit_per_minute))
     # CORS is added last so it wraps everything (including 429 responses from the rate limiter).
     app.add_middleware(
         CORSMiddleware,
@@ -82,6 +82,17 @@ def create_app(provider=None, hub: StreamHub | None = None, limiter=None) -> Fas
     app.include_router(markets_router)
     app.include_router(analysis_router)
     app.include_router(alerts_router)
+    @app.middleware("http")
+    async def security_headers(request, call_next):
+        resp = await call_next(request)
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("X-Frame-Options", "DENY")
+        resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        resp.headers.setdefault("Cache-Control", "no-store") if request.url.path.startswith("/api/auth") else None
+        if settings.env == "production":
+            resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+        return resp
+
     app.include_router(accounts_router)
     app.include_router(billing_router)
     app.include_router(signals_router)

@@ -69,14 +69,20 @@ def build_limiter(per_minute: int, redis_url: str | None):
     return RedisRateLimiter(aioredis.from_url(redis_url, socket_timeout=0.5, socket_connect_timeout=0.5), per_minute)
 
 
-def install_rate_limit(app, limiter) -> None:
+AUTH_PATHS = ("/api/auth/login", "/api/auth/register", "/api/auth/password", "/api/auth/delete")
+
+
+def install_rate_limit(app, limiter, auth_limiter=None) -> None:
     app.state.rate_limiter = limiter
+    auth_limiter = auth_limiter or MemoryRateLimiter(10)
 
     @app.middleware("http")
     async def rate_limit(request: Request, call_next):
         if request.url.path.startswith("/api/"):
             ip = request.client.host if request.client else "unknown"
             ok, retry = await limiter.allow(ip)
+            if ok and request.method == "POST" and request.url.path in AUTH_PATHS:
+                ok, retry = await auth_limiter.allow(f"auth:{ip}")
             if not ok:
                 if not getattr(request.state, "request_id", None):
                     request.state.request_id = uuid.uuid4().hex

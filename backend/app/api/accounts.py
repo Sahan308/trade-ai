@@ -1,5 +1,6 @@
 """Account endpoints and the server-side free trial (Milestone 7). Billing is not implemented."""
 import re
+import time
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,6 +16,18 @@ from ..models import AuditLog, Signal, SignalUnlock, User
 from ..access import LIVE, view
 
 router = APIRouter(tags=["accounts"])
+
+# Per-account sign-in throttle (in-process): 5 failed attempts per 15 minutes locks that email for the rest of the window.
+_FAILS: dict[str, list[float]] = {}
+_WINDOW, _MAX_FAILS = 15 * 60, 5
+_DUMMY_HASH = hash_password("timing-equaliser-not-a-real-password")
+
+
+def _recent_fails(email: str) -> list[float]:
+    now = time.time()
+    fails = [t for t in _FAILS.get(email, []) if now - t < _WINDOW]
+    _FAILS[email] = fails
+    return fails
 EMAIL = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$")
 
 
@@ -60,9 +73,17 @@ def register(body: Credentials, session: Session = Depends(get_session)):
 
 @router.post("/api/auth/login", summary="Sign in")
 def login(body: Credentials, session: Session = Depends(get_session)):
-    user = session.scalar(select(User).where(User.email == body.email.strip().lower()))
-    if user is None or not verify_password(body.password, user.password_hash):
+    email = body.email.strip().lower()
+    fails = _recent_fails(email)
+    if len(fails) >= _MAX_FAILS:
+        wait = int(_WINDOW - (time.time() - fails[0])) + 1
+        raise HTTPException(429, f"Too many failed sign-in attempts. Try again in {max(1, wait // 60)} minutes.", headers={"Retry-After": str(wait)})
+    user = session.scalar(select(User).where(User.email == email))
+    ok = verify_password(body.password, user.password_hash if user else _DUMMY_HASH) and user is not None
+    if not ok:
+        fails.append(time.time())
         raise HTTPException(401, "Email or password is incorrect")
+    _FAILS.pop(email, None)
     return {"token": issue_token(user.id), "user": me(session, user)}
 
 
