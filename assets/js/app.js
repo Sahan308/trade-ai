@@ -997,8 +997,9 @@
     const r = byId[id] || byId.dashboard;
     current = r.id;
     document.querySelectorAll("[data-route]").forEach((a) => a.dataset.route === r.id ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
-    $("#viewTitle").textContent = r.label;
-    document.title = `${r.label} · TRADE-AI`;
+    const wallNow = document.body.classList.contains("auth-wall");
+    $("#viewTitle").innerHTML = wallNow ? `<a href="index.html" style="color:inherit;text-decoration:none;font-weight:800">TRADE<span style="color:#36D6E7">-AI</span></a>` : TA.esc(r.label);
+    document.title = wallNow ? `${authMode === "register" ? "Create account" : "Sign in"} · TRADE-AI` : `${r.label} · TRADE-AI`;
     if (TA.track && r.id !== "stats" && r.id !== "reset") TA.track("/app/" + r.id);
     const host = $("#content");
     const view = document.createElement("div");
