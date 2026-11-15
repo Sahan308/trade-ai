@@ -4,6 +4,8 @@ on:
     inputs:
       days: { description: "days of history", default: "1095" }
       tfs: { description: "timeframes", default: "1H,4H,1D" }
+      symbols: { description: "space-separated symbols", default: "BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT ADAUSDT LINKUSDT AVAXUSDT" }
+      branch: { description: "branch to publish to", default: "research-data" }
 permissions:
   contents: write
 jobs:
@@ -15,13 +17,13 @@ jobs:
       - uses: actions/setup-python@v6
         with: { python-version: "3.12" }
       - run: pip install -r requirements.txt
-      - run: PYTHONPATH=. python scripts/fetch_history.py --out ../research-data --days ${{ inputs.days }} --tfs ${{ inputs.tfs }} BTCUSDT ETHUSDT SOLUSDT BNBUSDT XRPUSDT ADAUSDT LINKUSDT AVAXUSDT
+      - run: PYTHONPATH=. python scripts/fetch_history.py --out ../research-data --days ${{ inputs.days }} --tfs ${{ inputs.tfs }} ${{ inputs.symbols }}
       - name: Publish to the research-data branch (orphan; never merged into main)
         working-directory: .
         run: |
           cd research-data
-          git init -q -b research-data
+          git init -q -b ${{ inputs.branch }}
           git config user.name "github-actions"; git config user.email "actions@users.noreply.github.com"
           printf "Public Binance spot candles for TRADE-AI strategy research. Not used by the website.\n" > README.md
           git add -A && git commit -qm "Research data $(date -u +%Y-%m-%dT%H:%MZ)"
-          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" research-data
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ${{ inputs.branch }}

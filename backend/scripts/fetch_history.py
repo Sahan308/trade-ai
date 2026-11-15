@@ -27,7 +27,11 @@ def main():
         for tf in a.tfs.split(","):
             step = INTERVAL_MS[tf]
             end = now // step * step
-            s = p.history(MarketType.spot, sym, tf, end - a.days * 86_400_000, end)
+            try:
+                s = p.history(MarketType.spot, sym, tf, end - a.days * 86_400_000, end)
+            except Exception as exc:  # e.g. pair no longer served: skip it and say so
+                print(sym, tf, "SKIPPED:", exc.__class__.__name__, getattr(exc, "message", exc))
+                continue
             data = {"symbol": sym, "tf": tf, "source": s.source, "gaps": s.gaps, "dropped": s.dropped,
                     "t": [int(c.open_time.timestamp() * 1000) for c in s.candles], "o": [c.open for c in s.candles],
                     "h": [c.high for c in s.candles], "l": [c.low for c in s.candles], "c": [c.close for c in s.candles],
