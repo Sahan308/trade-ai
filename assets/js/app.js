@@ -26,6 +26,7 @@
     { id: "patterns", label: "Pattern & SMC", icon: "layers", ready: true },
     { id: "futures", label: "Futures intelligence", icon: "chart", ready: true },
     { group: "Performance & risk" },
+    { id: "monitor", label: "Market risk monitor", icon: "shield", ready: true },
     { id: "history", label: "Signal history", icon: "history", ready: true },
     { id: "risk", label: "Risk manager", icon: "gauge", ready: true },
     { group: "Settings" },
@@ -800,6 +801,58 @@
       draw();
     },
 
+    async monitor(el) {
+      if (!(await proGate(el, "Market risk monitor", "A tested trend model that reads whether the market is risk-on or risk-off, how much exposure it would hold, and which of the top-20 coins are trending."))) return;
+      const B = TA.Providers && TA.Providers.binance, R = TA.Regime;
+      el.innerHTML = `<div id="mon"><div class="skeleton" style="height:180px;border-radius:18px"></div></div>`;
+      const host = $("#mon", el);
+      if (store.demo || !B) { host.innerHTML = `<section class="card">${state("off", "Uses live market data", "Turn off sample data to run the model.")}</section>`; return; }
+      const pct = (x, d = 0) => (x == null ? "—" : `${(x * 100).toFixed(d)}%`);
+      const dots = (subs) => `<span style="display:inline-flex;gap:3px" aria-label="${subs.filter((x) => x.on).length} of 9 lookbacks in trend">${subs.map((x) => `<i title="${x.lookback}-day: ${x.on ? "in trend" : "no trend"}" style="width:8px;height:8px;border-radius:50%;background:${x.on ? "#35C98A" : "rgba(145,163,176,.25)"};${x.on ? "box-shadow:0 0 6px rgba(53,201,138,.7)" : ""}"></i>`).join("")}</span>`;
+      const load = async () => {
+        const series = {}, failed = [];
+        let k = 0;
+        const worker = async () => { while (k < R.UNIVERSE.length) { const sym = R.UNIVERSE[k++];
+          try { const r = await B.candles("Spot", sym.replace(/USDT$/, "/USDT"), "1D", 1000); const cs = r.candles.slice(0, -1);   // closed days only
+                series[sym] = { t: cs.map((x) => x.t), c: cs.map((x) => x.c), v: cs.map((x) => x.v) };
+          } catch { failed.push(sym); } } };
+        await Promise.all(Array.from({ length: 5 }, worker));
+        if (!el.isConnected) return;
+        if (!series.BTCUSDT) { host.innerHTML = `<section class="card">${state("error", "Couldn't load market data", "Binance didn't respond. Try again in a minute.", `<button class="btn btn-sm" data-act="retry">Try again</button>`)}</section>`; return; }
+        // align every coin to BTC's last closed day
+        const lastT = series.BTCUSDT.t[series.BTCUSDT.t.length - 1];
+        for (const [s, d] of Object.entries(series)) { const n = d.t.filter((t) => t <= lastT).length; if (!n || d.t[n - 1] !== lastT) { delete series[s]; failed.push(s); continue; } series[s] = { t: d.t.slice(0, n), c: d.c.slice(0, n), v: d.v.slice(0, n) }; }
+        const m = R.evaluate(series), on = m.regime === "risk-on";
+        const btcOn = Math.round((m.btcScore || 0) * 9);
+        const rows = m.rows.filter((r) => r.liq != null);
+        host.innerHTML = `<div class="grid-dash">
+          <section class="card panel span-12" style="border-color:${on ? "rgba(53,201,138,.45)" : "rgba(241,107,117,.45)"};box-shadow:0 0 24px ${on ? "rgba(53,201,138,.12)" : "rgba(241,107,117,.12)"}">
+            <div class="panel-head"><h2>${TA.icon("shield")}Market regime</h2><span class="muted" style="font-size:.82rem">Daily model · as of ${new Date(lastT).toISOString().slice(0, 10)} close (UTC)</span></div>
+            <div class="result-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+              <div class="result"><small>Regime</small><div style="color:${on ? "#35C98A" : "#F16B75"};font-weight:800">${on ? "▲ RISK-ON" : "▼ RISK-OFF"}</div></div>
+              <div class="result"><small>${term("BTC trend", "How many of BTC's 9 trend lookbacks (5 to 360 days) are in an uptrend. Under 5 of 9 = risk-off: the model halves all positions.")}</small><div>${btcOn} of 9</div></div>
+              <div class="result"><small>${term("Model exposure", "Share of a portfolio the tested model would hold in coins now. The rest stays in cash.")}</small><div>${pct(m.exposure)}</div></div>
+              <div class="result"><small>Coins in trend</small><div>${rows.filter((r) => r.eligible && r.score > 0).length} of ${rows.filter((r) => r.eligible).length}</div></div></div>
+            <p style="margin:12px 0 0;font-size:.9rem;color:var(--tx-2)">${on
+              ? "Bitcoin is in a broad uptrend. In past risk-on periods the model held more coins. Trends can reverse quickly; this is a reading, not a forecast."
+              : "Bitcoin is not in a broad uptrend. In this state the model cuts its positions in half or holds cash. In the unseen 2022–23 bear market, this is how it lost 11.5% while holding the top 20 coins lost 55%."}</p></section>
+          <section class="card panel span-12"><div class="panel-head"><h2>${TA.icon("layers")}Trend by coin</h2><span class="muted" style="font-size:.82rem">Top-20 by liquidity</span></div>
+            <div class="table-wrap"><table><thead><tr><th>Coin</th><th class="r">Last close</th><th>${term("Trend lookbacks", "Each dot is one lookback (5, 10, 20, 30, 60, 90, 150, 250, 360 days). Green = price broke above its range and hasn't fallen below the trailing stop.")}</th><th class="r">${term("90-day volatility", "Annualised. Higher volatility means the model holds a smaller position.")}</th><th class="r">${term("Model weight", "What the tested model would hold, as a share of the portfolio. Max 5% per coin.")}</th></tr></thead><tbody>
+            ${rows.filter((r) => r.eligible).sort((a, b) => b.score - a.score || b.liq - a.liq).map((r) => `<tr><td><b>${r.sym.replace(/USDT$/, "")}</b></td><td class="r num">${TA.fmtPrice(r.close)}</td><td>${dots(r.subs)}</td><td class="r num">${pct(r.vol)}</td><td class="r num ${r.weight > 0 ? "up" : "muted"}">${r.weight > 0 ? pct(r.weight, 1) : "—"}</td></tr>`).join("")}
+            </tbody></table></div>
+            ${failed.length ? `<p class="muted" style="font-size:.8rem;margin:8px 0 0">Unavailable: ${failed.map((s) => s.replace(/USDT$/, "")).join(", ")}.</p>` : ""}</section>
+          <section class="card panel span-12"><h2 style="font-size:1rem">${TA.icon("info")}How this model was tested</h2>
+            <p class="muted" style="margin:0 0 10px;font-size:.88rem">Pre-registered research round 4, based on published trend-following research. It was chosen on 2020–21 data and tested once on unseen 2022–23 data, with 0.15% costs and no leverage.</p>
+            <div class="table-wrap"><table><thead><tr><th>Unseen test, 2022 → Nov 2023</th><th class="r">Return</th><th class="r">Worst drawdown</th></tr></thead><tbody>
+              <tr><td><b>This model</b></td><td class="r num down">−11.5%</td><td class="r num">−34%</td></tr>
+              <tr><td>Holding BTC</td><td class="r num down">−24.8%</td><td class="r num">−67%</td></tr>
+              <tr><td>Holding top-20 coins</td><td class="r num down">−55.5%</td><td class="r num">−72%</td></tr></tbody></table></div>
+            <p style="margin:10px 0 0;font-size:.86rem;color:var(--tx-2)"><b>Honest summary:</b> it cut losses and drawdowns sharply, but it didn't make a profit in the test, so it's a <b>risk tool, not a buy/sell signal</b>. Delisted coins aren't in the data, which flatters the results. <a href="https://github.com/Sahan308/trade-ai/blob/main/research/RESULTS.md" target="_blank" rel="noopener">Full results</a>. Not financial advice.</p></section></div>`;
+      };
+      await load();
+      every(600000, load);
+    },
+
     async scanner(el) {
       if (!(await proGate(el, "Market scanner", "Rank the 25 most-traded pairs by trend, ADX, RSI, MACD, volume spikes and volatility on 1H, 4H or 1D."))) return;
       const B = TA.Providers && TA.Providers.binance;
@@ -890,7 +943,7 @@
           <section class="card panel span-6"><h2 style="font-size:1rem">${TA.icon("info")}Free vs Pro</h2>
           <ul style="margin:0;padding-left:18px;font-size:.88rem;color:var(--tx-2);display:grid;gap:4px">
             <li>Free for everyone: dashboard, live charts, signals with full levels, signal history, risk tools and alerts.</li>
-            <li>Pro adds the Market scanner, Futures intelligence and Pattern &amp; SMC analysis. New accounts get ${C.pricing.trialDays} days of Pro free.</li>
+            <li>Pro adds the Market risk monitor, Market scanner, Futures intelligence and Pattern &amp; SMC analysis. New accounts get ${C.pricing.trialDays} days of Pro free.</li>
             <li>Signals are experimental analysis, not advice. TRADE-AI never places trades.</li></ul>
           <p style="margin:12px 0 0;font-size:.84rem"><a href="legal/terms.html">Terms</a> · <a href="legal/privacy.html">Privacy</a> · <a href="legal/risk.html">Risk disclaimer</a></p></section></div>`;
         $("#signout", el).addEventListener("click", () => { TA.Auth.signOut(); TA.toast("Signed out.", "info"); location.hash = "#/login"; });
