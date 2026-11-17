@@ -386,9 +386,17 @@
 
   async function proGate(el, title, blurb) {
     if (store.demo || !TA.Auth.available()) return true;
-    const u = (await TA.Signals.getUsage()).data || {};
+    const r = await TA.Signals.getUsage();
+    const u = r.data || {};
     if (u.pro) return true;
     if (!el.isConnected) return false;
+    if (r.status === "error" || r.status === "disconnected") {
+      el.innerHTML = `<section class="card panel" style="text-align:center;padding:36px 22px">
+        <h2 style="font-size:1.3rem;margin:0 0 8px">Can't reach the TRADE-AI server</h2>
+        <p class="muted" style="max-width:520px;margin:0 auto 18px">Your plan couldn't be checked. This is usually a network, VPN or ad-blocker issue. Your account and Pro access are unchanged.</p>
+        <button class="btn btn-primary" onclick="location.reload()">Try again</button></section>`;
+      return false;
+    }
     const signedOut = !!u.signedOut;
     try { sessionStorage.setItem("ta-after-auth", location.hash); } catch {}
     el.innerHTML = `<section class="card panel" style="text-align:center;padding:36px 22px">
