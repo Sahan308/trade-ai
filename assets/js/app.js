@@ -87,8 +87,18 @@
     return `<div class="state ${kind}" role="${kind === "error" ? "alert" : "status"}"><div class="ic">${TA.icon(icon, "icon-lg")}</div><h3>${title}</h3><p>${body}</p>${actions ? `<div class="actions">${actions}</div>` : ""}</div>`;
   };
   const strategyNotice = () => C.strategyStatus && C.strategyStatus.experimental
-    ? `<div class="integration" role="note" style="border-color:rgba(241,107,117,.45)"><span class="down">${TA.icon("alert", "icon-sm")}</span><span>${TA.esc(C.strategyStatus.note)} <a href="${C.strategyStatus.url}" target="_blank" rel="noopener" style="text-decoration:underline">Read the research</a></span></div>` : "";
+    ? `<div class="integration" role="note" style="border-color:rgba(241,107,117,.45)"><span class="down">${TA.icon("alert", "icon-sm")}</span><span><b>${TA.esc(C.strategyStatus.note)}</b> <span data-live-record></span> <a href="${C.strategyStatus.url}" target="_blank" rel="noopener" style="text-decoration:underline">Read the research</a></span></div>` : "";
   TA.strategyNotice = strategyNotice;
+  // Fill in the measured live record of the current strategy wherever the notice is shown.
+  const fillLiveRecord = async (el) => {
+    const slot = el.querySelector("[data-live-record]");
+    if (!slot) return;
+    const r = await TA.Signals.getPerformance("prospective");
+    const m = r.status === "ok" && r.data && r.data.metrics;
+    if (!m || !m.trades || !slot.isConnected) return;
+    const e = m.expectancy_r;
+    slot.innerHTML = `Live record so far: <b>${m.wins} win${m.wins === 1 ? "" : "s"} of ${m.trades} closed trades</b>, average <b class="${e >= 0 ? "up" : "down"}">${e >= 0 ? "+" : ""}${Number(e).toFixed(2)}R</b> per trade after costs${m.trades < 30 ? " (too few trades to judge)" : ""}. <a href="#/history" style="text-decoration:underline">See every signal</a> ·`;
+  };
   const demoBtn = `<button class="btn btn-sm" data-act="demo-on">${TA.icon("flask", "icon-sm")}View sample preview</button>`;
   const retryBtn = `<button class="btn btn-sm" data-act="retry">${TA.icon("refresh", "icon-sm")}Retry</button>`;
   const disconnected = (what) => state("off", `${what} isn't connected`, "No market data source is configured, so nothing is shown rather than made-up numbers. Set <code>api.publicProvider</code> or <code>api.backendBaseUrl</code> in <code>config.js</code>.", demoBtn);
@@ -455,6 +465,7 @@
       let filter = "ALL";
       el.innerHTML = strategyNotice() + `<div class="panel-head" style="margin:0"><div class="seg" role="group" aria-label="Filter by direction">${["ALL", "LONG", "SHORT", "NO TRADE"].map((f) => `<button data-f="${f}" aria-pressed="${f === filter}">${f === "ALL" ? "All" : f[0] + f.slice(1).toLowerCase()}</button>`).join("")}</div></div>
         <div id="sg" class="module-grid">${Array.from({ length: 3 }, () => '<div class="skeleton" style="height:320px;border-radius:18px"></div>').join("")}</div>`;
+      fillLiveRecord(el);
       const r = await TA.Signals.getRecent({ demo: store.demo });
       if (!el.isConnected) return;
       if (r.status === "ok") lastSignals = r.data;
