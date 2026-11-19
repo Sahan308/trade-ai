@@ -313,8 +313,7 @@ def test(data_dir):
 
 
 FORWARD_START = MS(2026, 11, 19)
-FORWARD_SYSTEMS = ["S1 Daily 20-day breakout", "S2 Daily 20-day breakout + BTC trend filter",
-                   "S3 Turtle 55-day long/short", "S9 4h 55-bar breakout + BTC filter"]
+FORWARD_SYSTEMS = list(SYSTEMS)  # all ten, frozen as written
 
 
 def forward(data_dir):
