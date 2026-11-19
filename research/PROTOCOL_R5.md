@@ -9,3 +9,9 @@ and why passing systems must ALSO pass a live forward paper test before they go 
 
 A system PASSES only if, in BOTH periods: >= 100 trades, average >= +0.10R per trade after costs,
 profit factor >= 1.2, and the t-statistic of monthly R sums >= 2.0 (monthly grouping because trades cluster).
+
+## Result of the history test (2026-11-19)
+No system passed. The four breakout systems (S1, S2, S3, S9) made money in both periods
+(2024-26: +0.30 to +0.72R per trade, profit factor 1.5-2.5), but their monthly results were too uneven to
+pass the t >= 2 rule in 2024-26. The other six were flat or losing in 2024-26.
+These four, frozen as written, go into the live paper test (`run_r5.py forward`), trades entering on or after 2026-11-19.

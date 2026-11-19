@@ -312,5 +312,29 @@ def test(data_dir):
     json.dump(res, open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "design_results_r5.json"), "w"), indent=1)
 
 
+FORWARD_START = MS(2026, 11, 19)
+FORWARD_SYSTEMS = ["S1 Daily 20-day breakout", "S2 Daily 20-day breakout + BTC trend filter",
+                   "S3 Turtle 55-day long/short", "S9 4h 55-bar breakout + BTC filter"]
+
+
+def forward(data_dir):
+    """Live paper test: the rules are frozen as of 2026-11-19, so re-running them on fresh closed candles
+    and keeping only trades that ENTER after that date is the same as paper trading them in real time."""
+    import shutil
+    shutil.rmtree(data_dir, ignore_errors=True)
+    fetch(data_dir)
+    data = {"1d": load(data_dir, "1d"), "4h": load(data_dir, "4h")}
+    ctx = {"reg": btc_regime(data["1d"]["BTCUSDT"])}
+    out = {}
+    for name in FORWARD_SYSTEMS:
+        iv, fn = SYSTEMS[name]
+        tr = []
+        for s, d in data[iv].items():
+            tr += [dict(x, sym=s) for x in fn(d, ctx) if x["t"] >= FORWARD_START]
+        out[name] = {"closed": stats(tr), "trades": tr}
+        print(name, json.dumps(out[name]["closed"]), flush=True)
+    json.dump(out, open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "forward_r5.json"), "w"), indent=1)
+
+
 if __name__ == "__main__":
-    {"fetch": fetch, "test": test}[sys.argv[1]](sys.argv[2])
+    {"fetch": fetch, "test": test, "forward": forward}[sys.argv[1]](sys.argv[2])
